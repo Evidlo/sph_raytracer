@@ -1,18 +1,17 @@
 # sph_raytracer
 
-This is a volume raytracer implemented in PyTorch over a spherical coordinate system.  It was implemented very simply using only PyTorch array operations at the expense of memory consumption.
+A PyTorch volume raytracer in spherical coordinates.
 
 ## Quickstart
 
     pip install sph_raytracer
-    
     python example.py
 
 ![example output](example.png)
 
 ## Memory Usage
 
-The peak memory usage in GB of this library can be approximated with the following expression
+This library was implemented very simply using only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB of this library can be approximated with the following expression
 
     #                        points             indices   intersection_length
     #                           |                    |       |
