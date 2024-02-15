@@ -8,6 +8,7 @@ This is a volume raytracer implemented in PyTorch over a spherical coordinate sy
     
     python example.py
 
+![example output](example.png)
 
 ## Memory Usage
 

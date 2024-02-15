@@ -22,9 +22,12 @@ x[-10, :, :] += 1
 
 result = op(x)
 
-plt.title('Nested Shells')
 plt.subplot(1, 2, 1)
+plt.title('Nested Shells')
 plt.imshow(result)
 ax = plt.subplot(1, 2, 2, projection='3d')
 op.plot(ax)
+ax.set_title('View Geometry')
+
+plt.savefig('example.png')
 plt.show()
