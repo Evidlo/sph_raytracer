@@ -7,103 +7,8 @@ import torch as tr
 # shorthand for creating new axes
 na = None
 
-Size = namedtuple('Size', ['r', 'e', 'a'])
-Shape = namedtuple('Shape', ['r', 'e', 'a'])
-
 SPEC = {'dtype': tr.float64, 'device': 'cpu'}
 ISPEC = {'dtype': tr.int8, 'device': 'cpu'}
-
-class SphericalVol:
-    r"""Spherical grid information
-
-    Args:
-        size (tuple[float]): Len 2 tuple radii of inner/outer shells in Re
-        shape (tuple[int]): shape of spherical grid (r bins, elev bins, az bins)
-        rs (ndarray, optional): manually specify radial shell locations in Re.
-        phis (ndarray, optional): manually specify elevation cone locations
-            in radians [0,π] (measured from +Z axis).
-        thetas (ndarray, optional): manually specify azimuth plane locations
-            in radians [-π,π] (measured from +X axis)
-
-    Attributes:
-        shape (tuple[int])
-        rs (ndarray[float])
-        phis (ndarray[float])
-        thetas (ndarray[float])
-
-    Usage:
-        SphericalVol(((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), (50, 50, 50))
-        SphericalVol(
-            rs=tr.linspace(3, 25, 10),
-            phis=tr.linspace(0, tr.pi, 10),
-            thetas=tr.linspace(-tr.pi, tr.pi, 10)
-        )
-
-    Below is an illustration of where grid indices are located relative to
-    voxel indices for a volume of shape (2, 2, 4)
-
-             .....
-
-          Radial (r)              Elevation (phi)           Azimuth (theta)
-          ----------              ---------------           ---------------
-                                         Z↑                        Y↑
-   ..........* 2 *...........
-   ........*       *.........
-   ......*           *.......       0.........0             ..4         3
-   ....*     **1**     *.....        \..-1.../              ...\   3   /
-   ...*    *       *    *....         \...../               ....\     /
-   ..*    *   *0*   *    *...       0  \.../  0             .....\   /  2
-   ..*   *   *...*   *   *...           \./                 ..5...\ /
-   ..*   *   *-1.* 0 * 1 *.2.    1-------+-------1  X→      .......+-------2   X→
-   ..*   *   *...*   *   *...           /.\                 .-1.../ \
-   ..*    *   ***   *    *...       1  /...\  1             ...../   \  1
-   ...*    *       *    *....         /.....\               ..../     \
-   ....*     *****     *.....        /...2...\              .../   0   \
-   ......*           *.......       2.........2             ..0         1
-   ........*       *.........
-   ..........*****...........
-
-                              ....
-                              .... out of bounds voxels
-                              ....
-
-    """
-
-    def __init__(
-            self, size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), shape=(60, 19, 36),
-            rs=None, phis=None, thetas=None):
-        size = Size(*size)
-        shape = Shape(*shape)
-
-        # infer shape and size if grid is manually specified
-        if (rs is not None) and (phis is not None) and (thetas is not None):
-            shape = (len(rs) - 1, len(phis) - 1, len(thetas) - 1)
-            size = ((min(rs), max(rs)), (min(phis), max(phis)), (min(thetas), max(thetas)))
-
-        # otherwise compute grid
-        elif (shape is not None) and (size is not None):
-            rs = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1)
-            phis = tr.linspace(size.e[0], size.e[1], shape.e + 1)
-            thetas = tr.linspace(size.a[0], size.a[1], shape.a + 1)
-
-        else:
-            raise ValueError("Must specify either shape or (rs, phis, thetas)")
-
-        self.size = size
-        self.shape = shape
-        self.rs, self.phis, self.thetas = rs, phis, thetas
-
-    def __repr__(self):
-        s, sh = self.size, self.shape
-        size = f"(({s[0][0]:.1f}, {s[0][1]:.1f}), ({s[1][0]:.1f}, {s[1][1]:.1f}), ({s[2][0]:.1f}, {s[2][1]:.1f}))"
-        shape = f"({sh[0]}, {sh[1]}, {sh[2]})"
-        string = f"""SphericalVol(
-            size={size},
-            shape={tuple(self.shape)}
-        )"""
-        from inspect import cleandoc
-        return cleandoc(string)
-
 
 @tr.jit.script
 def forward_fill_jit(x, initial, dim=-1, fill_what=0, inplace=False):
@@ -597,9 +502,6 @@ def find_starts(vol, rays, spec=SPEC):
 
     return tr.stack((r_reg, e_reg, a_reg), axis=-1)
 
-# ---------- Tests ----------
-
-
 
 def printdebug(ts, regions, points, inds, negative_crossing):
     for t, r, p, i, n in zip(ts, regions, points, inds, negative_crossing):
@@ -610,3 +512,45 @@ def printdebug(ts, regions, points, inds, negative_crossing):
             f'n:{n:<2}',
             f'p:[{p[0]:>4.1f},{p[1]:>4.1f},{p[2]:>4.1f}]',
         )
+
+
+class Operator:
+    """Raytracing operator
+
+    Args:
+        vol (SphericalVol): spherical grid extent/resolution information
+        geom (ViewGeom): measurement locations and rays
+    """
+    def __init__(self, vol, geom, spec=SPEC, ispec=ISPEC):
+        self.vol = vol
+        self.geom = geom
+        self.regs, self.lens = trace_indices(vol, geom.pos, geom.rays, spec, ispec, invalid=False)
+
+    def __call__(self, density):
+        """Lookup up density indices for all rays and compute
+        inner-product with intersection length
+
+        Args:
+            density (tensor): 3D tensor of shape `vol.shape`
+        """
+        return (density[self.regs] * self.lens).sum(axis=-1)
+
+    def __repr__(self):
+        return f"Operator({self.vol.shape} → {self.geom.shape})"
+
+    def plot(self, ax=None):
+        """Generate Matplotlib wireframe plot for this object
+
+        Args:
+            ax (matplotlib Axes3D): existing matplotlib axis to use
+
+        Returns
+            matplotlib Axes3D
+        """
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            ax = plt.axes(projection='3d')
+            ax.set_proj_type('persp')
+
+        return self.geom.plot(self.vol.plot(ax))

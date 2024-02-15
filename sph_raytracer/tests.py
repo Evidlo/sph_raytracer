@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-import torch as tr
+from collections import namedtuple
 import math
+import torch as tr
 
-from raytracer import (
-    r_torch, e_torch, a_torch, trace_indices, find_starts,
-    SphericalVol,
-)
+from .raytracer import r_torch, e_torch, a_torch, trace_indices, find_starts
+from .geometry import SphericalVol, ConeRectGeom
 
 def check(a, b):
     """Helper function for checking equality of two tensors"""
@@ -16,9 +15,7 @@ def check(a, b):
         atol=1e-2
     )
 
-
 def test_r():
-
     rs = (0.1, 1, 2)
 
     # ray intersects all shells
@@ -57,7 +54,6 @@ def test_r():
 
 
 def test_e():
-
     phis = tr.tensor([tr.pi/6, tr.pi/4])
 
     # ray intersects all cones once (negative crossing)
@@ -134,7 +130,6 @@ def test_e():
 
 
 def test_a():
-
     thetas = [tr.pi/4, tr.pi/2]
 
     # ray intersects all planes once (negative crossing)
@@ -215,3 +210,10 @@ def test_trace_indices():
     x = tr.ones(vol.shape)
     result = (x[regions] * lens).sum(axis=-1)
     assert all(tr.isclose(result, tr.tensor(44, dtype=result.dtype)))
+
+def test_conerectgeom():
+    g = ConeRectGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), (23, 45))
+
+    # check fov angles
+    assert check(tr.dot(g.rays[0, 5], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[0])))
+    assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[1])))
