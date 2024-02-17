@@ -77,6 +77,9 @@ class SphericalVol:
             shape = (len(rs) - 1, len(phis) - 1, len(thetas) - 1)
             size = ((min(rs), max(rs)), (min(phis), max(phis)), (min(thetas), max(thetas)))
 
+            # enforce flaot64 dtype
+            rs, phis, thetas = [tr.asarray(x, dtype=tr.float64) for x in (rs, phis, thetas)]
+
         # otherwise compute grid
         elif (shape is not None) and (size is not None):
             if spacing == 'log':
@@ -85,8 +88,8 @@ class SphericalVol:
                 rs = tr.linspace(size.r[0], size.r[1], shape.r + 1)
             else:
                 raise ValueError("Invalid value for spacing")
-            phis = tr.linspace(size.e[0], size.e[1], shape.e + 1)
-            thetas = tr.linspace(size.a[0], size.a[1], shape.a + 1)
+            phis = tr.linspace(size.e[0], size.e[1], shape.e + 1, dtype=tr.float64)
+            thetas = tr.linspace(size.a[0], size.a[1], shape.a + 1, dtype=tr.float64)
 
         else:
             raise ValueError("Must specify either shape or (rs, phis, thetas)")
@@ -148,20 +151,23 @@ class ViewGeom:
     #     """Make a 1D input into a 2D tensor"""
     #     return tr.asarray(x, dtype=tr.float)[None, :]
 
-    def __init__(self, pos, rays):
-        pos = tr.asarray(pos, dtype=tr.float)
-        rays = tr.asarray(rays, dtype=tr.float)
-        rays /= tr.linalg.norm(rays, axis=-1)
+    def __init__(self, ray_starts, rays):
+        self.ray_starts = tr.asarray(ray_starts, dtype=tr.float)
+        self.rays = tr.asarray(rays, dtype=tr.float)
+        self.rays /= tr.linalg.norm(rays, axis=-1)
 
     @property
     def shape(self):
         return self.rays.shape[:-1]
 
-    # def __add__(self, other):
-    #     return self
+    def __add__(self, other):
+        if other == 0:
+            return ViewGeomCollection(self)
+        else:
+            return ViewGeomCollection(self, other)
 
-    # def __radd__(self, other):
-    #     return self.__add__(other)
+    def __radd__(self, other):
+        return self.__add__(other)
 
     def plot(self, ax=None):
         """Generate Matplotlib wireframe plot for this object
@@ -188,11 +194,34 @@ class ViewGeom:
 
     def __repr__(self):
         string = f"""ViewGeom(
-            pos={tuple(self.pos.tolist())},
             shape={tuple(self.shape)}
         )"""
         from inspect import cleandoc
         return cleandoc(string)
+
+
+class ViewGeomCollection(ViewGeom):
+    """Set of viewing geometries
+
+    Args:
+        *geoms (ViewGeom): ViewGeoms with same shape
+    """
+    def __init__(self, *geoms):
+        if not all(g.shape == geoms[0].shape for g in geoms):
+            raise ValueError("ViewGeoms must all have same shape")
+        self.geoms = geoms
+
+    @property
+    def rays(self):
+        return tr.concat(tuple(g.rays[None, ...] for g in self.geoms))
+
+    @property
+    def ray_starts(self):
+        return tr.concat(tuple(g.ray_starts[None, ...] for g in self.geoms))
+
+    def _wireframe(self):
+        return sum([g._wireframe() for g in self.geoms], [])
+
 
 class ConeRectGeom(ViewGeom):
     """Rectangular sensor with fan/cone beam geometry"""
@@ -215,8 +244,9 @@ class ConeRectGeom(ViewGeom):
         u = tr.cross(lookdir, updir)
         v = updir
 
-        ulim = tr.tan(tr.deg2rad(fov[0] / 2))
-        vlim = tr.tan(tr.deg2rad(fov[1] / 2))
+        # handle case with single LOS
+        ulim = tr.tan(tr.deg2rad(fov[0] / 2)) if shape[0] > 1 else 0
+        vlim = tr.tan(tr.deg2rad(fov[1] / 2)) if shape[1] > 1 else 0
         rays = (
         lookdir[None, None, :]
         + u[None, None, :] * tr.linspace(ulim, -ulim, shape[0])[:, None, None]
@@ -230,6 +260,10 @@ class ConeRectGeom(ViewGeom):
         self.fov = fov
         self.rays = rays
 
+    @property
+    def ray_starts(self):
+        """Start position of each ray"""
+        return self.pos[None, None, :]
 
     def __repr__(self):
         string = f"""ConeRectGeom(

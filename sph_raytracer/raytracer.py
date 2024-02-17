@@ -41,7 +41,7 @@ def forward_fill_jit(x, initial, dim=-1, fill_what=0, inplace=False):
     return x.moveaxis(0, dim)
 
 
-def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=False):
+def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=False):
     """Sort points by distance.  Then filter out invalid intersections (nan t values)
     and points which lie outside radius `max_r` (inplace)
 
@@ -56,17 +56,14 @@ def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=F
     Returns:
 
     """
-
     # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs = r_torch(vol.rs, xs, rays, spec, ispec)[:2]
-    # throw out region outside outermost sphere
-    # r_t, r_regs = r_t[..., :-1], r_regs[..., :-1]
-    e_t, _e_regs = e_torch(vol.phis, xs, rays, spec, ispec)[:2]
-    a_t, _a_regs = a_torch(vol.thetas, xs, rays, spec, ispec)[:2]
+    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs, xs, rays, spec, ispec)
+    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis, xs, rays, spec, ispec)
+    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas, xs, rays, spec, ispec)
 
     # concatenate intersection distances/points from all geometry kinds
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
-    del r_t, e_t, a_t
+    # del r_t, e_t, a_t
     # concatenate regions and place into appropriate column
     # FIXME: cleaner dtype/device handling?
     # FIXME: using -2 to represent invalid region index
@@ -79,7 +76,12 @@ def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=F
     a_regs[..., 2] = _a_regs
     all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-2)
     _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
+
     # del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
+
+    # mark regions behind ray start as invalid
+    all_regs[all_ts < 0] = -2
+    _all_regs[all_ts < 0] = -2
 
     # sort points by distance
     # https://discuss.pytorch.org/t/sorting-and-rearranging-multi-dimensional-tensors/148340
@@ -97,7 +99,8 @@ def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=F
     forward_fill_jit(
         all_regs_s,
         # tr.full_like(all_regs_s, -2)[..., 0, :],
-        find_starts(vol, rays),
+        # find_starts(vol, rays),
+        find_starts(vol, xs),
         dim=-2, fill_what=-2, inplace=True
     )
 
@@ -130,6 +133,21 @@ def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=F
         # all_regs_s[all_regs_s[..., 2] < 0] = 0
 
     if debug:
+        r_inds = tr.full((*_r_inds.shape, 3), -2, device=_r_inds.device, dtype=_r_inds.dtype)
+        r_inds[..., 0] = _r_inds
+        e_inds = tr.full((*_e_inds.shape, 3), -2, device=_r_inds.device, dtype=_e_inds.dtype)
+        e_inds[..., 1] = _e_inds
+        a_inds = tr.full((*_a_inds.shape, 3), -2, device=_r_inds.device, dtype=_a_inds.dtype)
+        a_inds[..., 2] = _a_inds
+        all_inds = tr.cat((r_inds, e_inds, a_inds), dim=-2)
+        _all_inds = tr.cat((_r_inds, _e_inds, _a_inds), dim=-1)
+        _all_inds_s = _all_inds.gather(-1, s)
+        all_inds_s = tr.take_along_dim(all_inds, s[..., None], dim=-2)
+        _all_ns = tr.cat((_r_ns, _e_ns, _a_ns), dim=-1)
+        _all_ns_s = _all_ns.gather(-1, s)
+        _all_kinds = tr.cat((tr.full_like(_r_inds, 0), tr.full_like(_e_inds, 1), tr.full_like(_a_inds, 2)), dim=-1)
+        _all_kinds_s = _all_kinds.gather(-1, s)
+
         shp = len(all_regs_s.shape)
         if shp == 4:
             which = (0, 0)
@@ -140,14 +158,20 @@ def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=F
         regs = all_regs_s[which]
         lens = all_lens_s[which]
         ts   = all_ts_s[which]
-        print(find_starts(vol, rays))
-        for r, l, t_ in zip(regs, lens, ts):
+        inds = _all_inds_s[which]
+        ns = _all_ns_s[which]
+        kinds = _all_kinds_s[which]
+        kmap = {0:'r', 1:'e', 2:'a'}
+        # print(find_starts(vol, rays))
+        print(find_starts(vol, xs))
+        for k, r, l, t_, ind, n in zip(kinds, regs, lens, ts, inds, ns):
             print(
+                f'{kmap[int(k)]:<2}',
                 f'r:[{r[0]:>2},{r[1]:>2},{r[2]:>2}]',
-                f'l:{l:<3.1f}',
-                f't:{t_:<10.1f}'
-                # f'i:{ind:<4}',
-                # f'n:{n:<2}',
+                f'l:{float(l):<4.2f}',
+                f't:{float(t_):<10.2f}'
+                f'i:{int(ind):<2}',
+                f'n:{n:<2}',
                 # f'p:[{p[0]:>4.1f},{p[1]:>4.1f},{p[2]:>4.1f}]',
             )
 
@@ -156,6 +180,20 @@ def trace_indices(vol, xs, rays,  spec=SPEC, ispec=ISPEC, invalid=False, debug=F
     # return (r, e, a), all_lens_s
     return tuple(all_regs_s.moveaxis(-1, 0).type(tr.int64)), all_lens_s
 
+
+def isclose(a, b):
+    """Detect whether a/b are close.  Like tr.isclose but scales with dtype
+
+    Args:
+        a (tensor): input tensor
+        b (tensor): input tensor
+
+    Returns:
+        tensor
+    """
+    # detecting whether value is very small to avoid precision issues
+    # `resolution` is a bit more forgiving than `eps` (also tr.isclose doesn't scale with dtype)
+    return abs(a - b) < tr.finfo(a.dtype).resolution ** (1/4)
 
 def r_torch(rs, xs, rays, spec=SPEC, ispec=ISPEC):
     """Compute intersections of ray with concentric spheres
@@ -249,9 +287,6 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
 
     assert len(phis) - 1 < tr.iinfo(ispec['dtype']).max, "Too many phis!  Would cause overflow"
 
-    # detecting whether value is very small to avoid precision issues
-    # `resolution` is a bit more forgiving than `eps` (also tr.isclose doesn't scale with dtype)
-    isclose = lambda a, b: abs(a - b) < tr.finfo(spec['dtype']).resolution ** 1/4
     zero = tr.tensor(0, **spec)
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
@@ -371,6 +406,7 @@ def a_torch(thetas, xs, rays, spec=SPEC, ispec=ISPEC):
     """
     assert len(thetas) - 1 < tr.iinfo(ispec['dtype']).max, "Too many thetas!  Would cause overflow"
 
+    zero = tr.tensor(0, **spec)
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
     thetas = tr.asarray(thetas, **spec)
@@ -387,14 +423,26 @@ def a_torch(thetas, xs, rays, spec=SPEC, ispec=ISPEC):
         dotproduct(plane_norms[na_rays + (Ellipsis, Ellipsis)], rays[..., na, :])
     )
     inds = tr.arange(len(thetas), **ispec)
-    inds = inds.repeat(*xs.shape[:-1], 1)
+    inds = inds.repeat(*rshape, 1)
     # compute region index - check whether Z component of cross product is negative
-    negative_crossing = tr.cross(planes[na_rays + (Ellipsis, Ellipsis)], rays[..., na, :])[..., -1] < 0
-    negative_crossing = negative_crossing.type(tr.int8)
-    regions = inds - negative_crossing # % len(thetas)
 
-    # mark region outside last plane as invalid
-    regions[regions == len(thetas) - 1] = -1
+    cross = tr.cross(planes[na_rays + (Ellipsis, Ellipsis)], rays[..., na, :])[..., -1]
+    # ray is parallel to plane
+    # FIXME: wrap up into nice isclose func
+    is_parallel = tr.isclose(cross, zero, atol=tr.finfo(cross.dtype).resolution)
+    t[..., is_parallel] = float('inf')
+
+    negative_crossing = (cross < 0).type(tr.int8)
+    regions = inds - negative_crossing
+
+    # if thetas are full range, wrap around
+    if -thetas[0] == thetas[-1] == tr.pi:
+        regions = regions % (len(thetas) - 1)
+    else:
+        # mark region outside last plane as invalid,
+        regions[regions == len(thetas) - 1] = -1
+
+    # FIXME: can't handle case when ray goes directly through Z axis!
 
     # NOTE: run out of memory when doing below for rshape (50, 512, 512)
     # points = xs[..., na, :] + t[..., :, na] * rays[..., na, :]
@@ -462,11 +510,11 @@ def sph2cart(rea):
     return xyz
 
 
-def find_starts(vol, rays, spec=SPEC):
-    """Compute voxel indices of ray at infinity
+def find_starts(vol, xs, spec=SPEC):
+    """Compute voxel indices of ray start location at infinity
 
     Args:
-        rays (tensor): lines of sight (num_rays, 3)
+        rays (tensor): directions of rays (*num_rays, 3)
 
         vol (SphericalVol): spherical grid
         spec (dict): type specification for floats
@@ -475,10 +523,10 @@ def find_starts(vol, rays, spec=SPEC):
         regions (tensor)
     """
     rs, phis, thetas = (vol.rs, vol.phis, vol.thetas)
-    rays, rs, phis, thetas = map(lambda x: tr.asarray(x, **spec), (rays, rs, phis, thetas))
+    rays, rs, phis, thetas = map(lambda x: tr.asarray(x, **spec), (xs, rs, phis, thetas))
     rays_sph = cart2sph(rays)
     # starting radius of rays is infinite
-    rays_sph[..., 0] = float('inf')
+    # rays_sph[..., 0] = float('inf')
 
     # make contiguous to avoid pytorch searchsorted warnings
     rays_r = rays_sph[..., 0].contiguous()
@@ -521,10 +569,12 @@ class Operator:
         vol (SphericalVol): spherical grid extent/resolution information
         geom (ViewGeom): measurement locations and rays
     """
-    def __init__(self, vol, geom, spec=SPEC, ispec=ISPEC):
+    def __init__(self, vol, geom, spec=SPEC, ispec=ISPEC, debug=False, invalid=False):
         self.vol = vol
         self.geom = geom
-        self.regs, self.lens = trace_indices(vol, geom.pos, geom.rays, spec, ispec, invalid=False)
+        self.regs, self.lens = trace_indices(
+            vol, geom.ray_starts, geom.rays, spec, ispec, invalid=invalid, debug=debug
+        )
 
     def __call__(self, density):
         """Lookup up density indices for all rays and compute

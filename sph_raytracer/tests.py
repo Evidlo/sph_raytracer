@@ -195,21 +195,44 @@ def test_find_starts():
 
 def test_trace_indices():
     # trace through center of solid sphere
-    vol = SphericalVol(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi)))
+    vols = [
+        SphericalVol(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi))),
+        SphericalVol(shape=(4, 4, 4)),
+        SphericalVol(shape=(1, 4, 4)),
+        SphericalVol(shape=(4, 1, 4)),
+        SphericalVol(shape=(4, 4, 1)),
+    ]
+    u = 0.001
     xs = [
-        [-100, 0, 0],
-        [0, -100, 0],
-        [0, 0, -100]
+        [-100, u, u],
+        [u, -100, u],
+        [u, u, -100],
+        [-100, 0, u],
+        [0, -100, u],
+        [0, u, -100],
+        [-100, u, 0],
+        [u, -100, 0],
+        [u, 0, -100],
     ]
     rays = [
         [1, 0, 0],
         [0, 1, 0],
-        [0, 0, 1]
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
     ]
-    regions, lens = trace_indices(vol, xs, rays)
-    x = tr.ones(vol.shape)
-    result = (x[regions] * lens).sum(axis=-1)
-    assert all(tr.isclose(result, tr.tensor(44, dtype=result.dtype)))
+    for vol in vols:
+        regions, lens = trace_indices(vol, xs, rays)
+        d = tr.ones(vol.shape)
+        result = (d[regions] * lens).sum(axis=-1)
+        diam = 2 * (vol.size[0][1] - vol.size[0][0])
+        ray_success = tr.isclose(result, tr.tensor(diam, dtype=result.dtype))
+        fail_str = f"Failure for vol={vol} for ray #s {tr.where(ray_success == False)[0].tolist()}"
+        assert all(tr.isclose(result, tr.tensor(diam, dtype=result.dtype))), fail_str
 
 def test_conerectgeom():
     g = ConeRectGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), (23, 45))
