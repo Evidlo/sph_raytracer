@@ -67,7 +67,6 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
     # concatenate regions and place into appropriate column
     # FIXME: cleaner dtype/device handling?
     # FIXME: using -2 to represent invalid region index
-    print('sorting setup...')
     r_regs = tr.full((*_r_regs.shape, 3), -2, device=_r_regs.device, dtype=_r_regs.dtype)
     r_regs[..., 0] = _r_regs
     e_regs = tr.full((*_e_regs.shape, 3), -2, device=_r_regs.device, dtype=_e_regs.dtype)
@@ -80,22 +79,17 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
     # del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
 
     # mark regions behind ray start as invalid
-    all_regs[all_ts < 0] = -2
-    _all_regs[all_ts < 0] = -2
+    # all_regs[all_ts < 0] = -2
+    # _all_regs[all_ts < 0] = -2
 
     # sort points by distance
     # https://discuss.pytorch.org/t/sorting-and-rearranging-multi-dimensional-tensors/148340
-    print('sorting...')
     all_ts_s, s = all_ts.sort(dim=-1)
-    print('gathering 1D...')
     _all_regs_s = _all_regs.gather(-1, s)
-    # print('gathering 3D setup...')
     # s_expanded = s[..., None].repeat_interleave(3, dim=-1)
-    # print('gathering 3D...')
     # all_regs_s = all_regs.gather(1, s_expanded)
     all_regs_s = tr.take_along_dim(all_regs, s[..., None], dim=-2)
 
-    print('forward filling...')
     forward_fill_jit(
         all_regs_s,
         # tr.full_like(all_regs_s, -2)[..., 0, :],
@@ -104,13 +98,11 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
         dim=-2, fill_what=-2, inplace=True
     )
 
-    print('segment lengths...')
     # segment intersection lengths with voxels
     # last segment in each ray is infinitely long
     inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), **spec)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
 
-    print('zero lengths...')
 
     if not invalid:
         # zero out nan/inf lengths
@@ -162,7 +154,6 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
         ns = _all_ns_s[which]
         kinds = _all_kinds_s[which]
         kmap = {0:'r', 1:'e', 2:'a'}
-        # print(find_starts(vol, rays))
         print(find_starts(vol, xs))
         for k, r, l, t_, ind, n in zip(kinds, regs, lens, ts, inds, ns):
             print(
@@ -181,19 +172,20 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
     return tuple(all_regs_s.moveaxis(-1, 0).type(tr.int64)), all_lens_s
 
 
-def isclose(a, b):
+def isclose(a, b, factor=4):
     """Detect whether a/b are close.  Like tr.isclose but scales with dtype
 
     Args:
         a (tensor): input tensor
         b (tensor): input tensor
+        factor (float): allow larger errors
 
     Returns:
         tensor
     """
     # detecting whether value is very small to avoid precision issues
     # `resolution` is a bit more forgiving than `eps` (also tr.isclose doesn't scale with dtype)
-    return abs(a - b) < tr.finfo(a.dtype).resolution ** (1/4)
+    return abs(a - b) < tr.finfo(a.dtype).resolution ** (1/factor)
 
 def r_torch(rs, xs, rays, spec=SPEC, ispec=ISPEC):
     """Compute intersections of ray with concentric spheres
@@ -335,7 +327,7 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     is_parallel[..., :len(phis)] = tr.logical_and(isclose(a, zero), tr.logical_not(isclose(b, zero)))
     is_parallel[..., len(phis):] = is_parallel[..., :len(phis)]
     t = tr.where(is_parallel, t_parallel, t_normal)
-    del t_normal, t_parallel, is_parallel
+    # del t_normal, t_parallel, is_parallel
 
     # --- ray lies on cone ---
     t[..., :len(phis)][(a==0) * (b==0) * (c==0)] = float('inf')
@@ -361,10 +353,19 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
             axis=-1
         )
     )
+    points_normal /= tr.linalg.norm(points_normal, dim=-1)[..., na]
     # check whether crossing of plane is positive or negative
     dotproduct = lambda a, b: tr.einsum('...c,...bc->...b', a, b)
-    negative_crossing = (dotproduct(rays, points_normal) > 0).type(tr.int8)
+    prod = dotproduct(rays, points_normal)
+    negative_crossing = (prod > 0).type(tr.int8)
     regions = inds - negative_crossing
+
+    # ray just barely glances a cone, keep the region the same
+    # FIXME: this error factor is hard to get right in advance.  need to do
+    # a proper forward analysis of floating-point forward error propagation
+    # to find upper bound on error at this point
+    # https://www-users.cselabs.umn.edu/classes/Fall-2019/csci5304/FILES/LecN4.pdf
+    regions[isclose(prod, zero, factor=5)] = -2
 
     # filter out intersections with opposite shadow cone
     phis_expanded = phis.repeat(2)
@@ -549,17 +550,6 @@ def find_starts(vol, xs, spec=SPEC):
     a_reg[a_reg == vol.shape[2]] = -1
 
     return tr.stack((r_reg, e_reg, a_reg), axis=-1)
-
-
-def printdebug(ts, regions, points, inds, negative_crossing):
-    for t, r, p, i, n in zip(ts, regions, points, inds, negative_crossing):
-        print(
-            f'r:{r:<2}',
-            f't:{t:<10.1f}'
-            f'i:{i:<4}',
-            f'n:{n:<2}',
-            f'p:[{p[0]:>4.1f},{p[1]:>4.1f},{p[2]:>4.1f}]',
-        )
 
 
 class Operator:
