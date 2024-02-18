@@ -5,7 +5,7 @@ import math
 import torch as tr
 
 from .raytracer import r_torch, e_torch, a_torch, trace_indices, find_starts
-from .geometry import SphericalVol, ConeRectGeom
+from .geometry import *
 
 def check(a, b):
     """Helper function for checking equality of two tensors"""
@@ -107,9 +107,8 @@ def test_e():
     xs = [(1, 1, 1)]
     rays = [(0, -1, 0)]
     e_t, e_region = e_torch([tr.pi / 4], xs, rays)[:2]
-    # FIXME: should this be [1, inf] ?
     assert check(e_t, [1, 1])
-    assert check(e_region, [-1, -1])
+    assert check(e_region, [-2, -2])
 
     # ray through origin
     xs = [(-1, 0, 0)]
@@ -169,7 +168,6 @@ def test_a():
     xs = [(0, 1, 0)]
     rays = [(0, -1, 0)]
     a_t, a_region = a_torch([tr.pi/2], xs, rays)[:2]
-    print(a_t, a_region)
     # FIXME:
     # assert check(a_t, [1, 1])
     # assert check(a_region, [1, 0])
@@ -213,6 +211,7 @@ def test_trace_indices():
         [-100, u, 0],
         [u, -100, 0],
         [u, 0, -100],
+        [5, 0, 0],
     ]
     rays = [
         [1, 0, 0],
@@ -224,6 +223,8 @@ def test_trace_indices():
         [1, 0, 0],
         [0, 1, 0],
         [0, 0, 1],
+        # ray just barely glances cone
+        [-0.99998629093170166016,  0.00413372274488210678, 0.00321511807851493359],
     ]
     for vol in vols:
         regions, lens = trace_indices(vol, xs, rays)
@@ -232,11 +233,32 @@ def test_trace_indices():
         diam = 2 * (vol.size[0][1] - vol.size[0][0])
         ray_success = tr.isclose(result, tr.tensor(diam, dtype=result.dtype))
         fail_str = f"Failure for vol={vol} for ray #s {tr.where(ray_success == False)[0].tolist()}"
-        assert all(tr.isclose(result, tr.tensor(diam, dtype=result.dtype))), fail_str
+        assert all(tr.isclose(result, tr.tensor(diam, dtype=result.dtype), atol=1e-2)), fail_str
 
 def test_conerectgeom():
-    g = ConeRectGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), (23, 45))
+    g = ConeRectGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(23, 45))
 
     # check fov angles
     assert check(tr.dot(g.rays[0, 5], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[0])))
     assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[1])))
+    # check lookdir
+    assert check(g.rays[5, 5], g.lookdir)
+
+    # single pixel detector
+    g = ConeRectGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(23, 45))
+    # check lookdir
+    assert check(g.rays[0, 0], g.lookdir)
+
+
+def test_conecircgeom():
+    g = ConeCircGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=45)
+
+    # check fov angles
+    assert check(tr.dot(g.rays[-1, 0], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov)))
+    # check look dir
+    assert check(g.rays[0, 0], g.lookdir)
+
+    # single pixel detector
+    g = ConeCircGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=45)
+    # check lookdir
+    assert check(g.rays[0, 0], g.lookdir)

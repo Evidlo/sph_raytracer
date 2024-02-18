@@ -155,10 +155,7 @@ class ViewGeom:
         self.ray_starts = tr.asarray(ray_starts, dtype=tr.float)
         self.rays = tr.asarray(rays, dtype=tr.float)
         self.rays /= tr.linalg.norm(rays, axis=-1)
-
-    @property
-    def shape(self):
-        return self.rays.shape[:-1]
+        self.shape = lambda self: self.rays.shape[:-1]
 
     def __add__(self, other):
         if other == 0:
@@ -224,13 +221,17 @@ class ViewGeomCollection(ViewGeom):
 
 
 class ConeRectGeom(ViewGeom):
-    """Rectangular sensor with fan/cone beam geometry"""
+    """Rectangular sensor with fan/cone beam geometry
+
+    Args:
+        shape (tuple[int]): detector shape (npix_x, npix_y)
+        pos (tuple[float]): XYZ position of detector
+        lookdir (tuple[float]): detector pointing direction
+        updir (tuple[float]): direction of detector +Y
+        fov (tuple[float]): detector field of view (fov_x, fov_y)
+    """
 
     def __init__(self, shape, pos, lookdir, updir=(0, 0, 1), fov=(45, 45)):
-        # pos = self.make2d(pos)
-        # lookdir = self.make2d(lookdir)
-        # updir = self.make2d(updir)
-        # fov = self.make2d(fov)
         pos = tr.asarray(pos, dtype=tr.float)
         lookdir = tr.asarray(lookdir, dtype=tr.float)
         updir = tr.asarray(updir, dtype=tr.float)
@@ -238,39 +239,40 @@ class ConeRectGeom(ViewGeom):
         lookdir /= tr.linalg.norm(lookdir, axis=-1)
         updir /= tr.linalg.norm(updir, axis=-1)
 
-        # if not len(lookdir) == len(updir) == len(pos) == len(fov):
-        #     raise ValueError("Input vectors should have equal shape")
-
-        u = tr.cross(lookdir, updir)
-        v = updir
-
-        # handle case with single LOS
-        ulim = tr.tan(tr.deg2rad(fov[0] / 2)) if shape[0] > 1 else 0
-        vlim = tr.tan(tr.deg2rad(fov[1] / 2)) if shape[1] > 1 else 0
-        rays = (
-        lookdir[None, None, :]
-        + u[None, None, :] * tr.linspace(ulim, -ulim, shape[0])[:, None, None]
-        + v[None, None, :] * tr.linspace(vlim, -vlim, shape[1])[None, :, None]
-        ).reshape((*shape, 3))
-        rays /= tr.linalg.norm(rays, axis=-1)[..., None]
-
+        self.shape = shape
         self.pos = pos
         self.lookdir = lookdir
         self.updir = updir
         self.fov = fov
-        self.rays = rays
+
+    @property
+    def rays(self):
+        """Ray unit vectors (*shape, 3)"""
+        u = tr.cross(self.lookdir, self.updir)
+        v = self.updir
+
+        # handle case with single LOS
+        ulim = tr.tan(tr.deg2rad(self.fov[0] / 2)) if self.shape[0] > 1 else 0
+        vlim = tr.tan(tr.deg2rad(self.fov[1] / 2)) if self.shape[1] > 1 else 0
+        rays = (
+        self.lookdir[None, None, :]
+        + u[None, None, :] * tr.linspace(ulim, -ulim, self.shape[0])[:, None, None]
+        + v[None, None, :] * tr.linspace(vlim, -vlim, self.shape[1])[None, :, None]
+        ).reshape((*self.shape, 3))
+        rays /= tr.linalg.norm(rays, axis=-1)[..., None]
+        return rays
 
     @property
     def ray_starts(self):
-        """Start position of each ray"""
+        """Start position of each ray. Shape (1, 3)"""
         return self.pos[None, None, :]
 
     def __repr__(self):
         string = f"""ConeRectGeom(
-            shape={tuple(self.shape)}
-            pos={tuple(self.pos.tolist())},
-            lookdir={tuple(self.lookdir.tolist())},
-            fov={tuple(self.fov.tolist())}
+            shape={self.shape}
+            pos={self.pos.tolist()},
+            lookdir={self.lookdir.tolist()},
+            fov={self.fov.tolist()}
         )"""
         from inspect import cleandoc
         return cleandoc(string)
@@ -288,3 +290,36 @@ class ConeRectGeom(ViewGeom):
             Segment('gray', 1, c1, c2) for c1, c2 in zip(corners, corners.roll(-1, dims=0))
         ]
         return segments
+
+
+class ConeCircGeom(ConeRectGeom):
+    """Circular sensor with fan/cone beam geometry
+
+    Args:
+        shape (tuple[int]): detector shape (npix_r, npix_theta)
+        pos (tuple[float]): XYZ position of detector
+        lookdir (tuple[float]): detector pointing direction
+        updir (tuple[float]): direction of detector +Y
+        fov (float): detector field of view
+    """
+
+    def __init__(self, *args, fov=45, **kwargs):
+        super().__init__(*args, fov=fov, **kwargs)
+
+    @property
+    def rays(self):
+        """Ray unit vectors. Shape (*shape, 3)"""
+        u = tr.cross(self.lookdir, self.updir)
+        v = self.updir
+
+        # build r, theta grid
+        # https://math.stackexchange.com/questions/73237/parametric-equation-of-a-circle-in-3d-space
+        r = tr.linspace(0, tr.tan(tr.deg2rad(self.fov / 2)), self.shape[0])
+        theta = tr.linspace(0, 2 * tr.pi, self.shape[1])
+        rays = (
+            self.lookdir[None, None, :]
+            + r[:, None, None] * tr.cos(theta[None, :, None]) * u[None, None, :]
+            + r[:, None, None] * tr.sin(theta[None, :, None]) * v[None, None, :]
+        )
+        rays /= tr.linalg.norm(rays, axis=-1)[..., None]
+        return rays
