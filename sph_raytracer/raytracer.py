@@ -4,11 +4,16 @@ from collections import namedtuple
 import math
 import torch as tr
 
+from .geometry import ViewGeomCollection
+
 # shorthand for creating new axes
 na = None
 
-SPEC = {'dtype': tr.float64, 'device': 'cpu'}
-ISPEC = {'dtype': tr.int8, 'device': 'cpu'}
+DEVICE = 'cpu'
+FTYPE = tr.float64
+ITYPE = tr.int8
+# SPEC = {'dtype': tr.float64, 'device': 'cpu'}
+# ISPEC = {'dtype': tr.int8, 'device': 'cpu'}
 
 @tr.jit.script
 def forward_fill_jit(x, initial, dim=-1, fill_what=0, inplace=False):
@@ -41,7 +46,7 @@ def forward_fill_jit(x, initial, dim=-1, fill_what=0, inplace=False):
     return x.moveaxis(0, dim)
 
 
-def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=False):
+def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invalid=False, debug=False):
     """Sort points by distance.  Then filter out invalid intersections (nan t values)
     and points which lie outside radius `max_r` (inplace)
 
@@ -49,32 +54,41 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
         vol (SphericalVol): spherical grid
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
-        spec (dict): type specification for floats
-        ispec (dict): type specification for ints
+        ftype (torch dtype): type specification for floats
+        itype (torch dtype): type specification for ints
         invalid (bool): filter out invalid lengths/regions
 
     Returns:
 
     """
-    # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs, xs, rays, spec, ispec)
-    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis, xs, rays, spec, ispec)
-    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas, xs, rays, spec, ispec)
+    spec = {'dtype': ftype, 'device': device}
+    ispec = {'dtype': itype, 'device': device}
 
+    print('--------- 1')
+    # --- compute voxel indices for all rays and their distances ---
+    print('--------- 1.1')
+    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs, xs, rays, ftype=ftype, itype=itype, device=device)
+    print('--------- 1.2')
+    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis, xs, rays, ftype=ftype, itype=itype, device=device)
+    print('--------- 1.3')
+    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas, xs, rays, ftype=ftype, itype=itype, device=device)
+
+    print('--------- 1.4')
     # concatenate intersection distances/points from all geometry kinds
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
     # del r_t, e_t, a_t
     # concatenate regions and place into appropriate column
     # FIXME: cleaner dtype/device handling?
     # FIXME: using -2 to represent invalid region index
-    r_regs = tr.full((*_r_regs.shape, 3), -2, device=_r_regs.device, dtype=_r_regs.dtype)
+    r_regs = tr.full((*_r_regs.shape, 3), -2, device=device, dtype=itype)
     r_regs[..., 0] = _r_regs
-    e_regs = tr.full((*_e_regs.shape, 3), -2, device=_r_regs.device, dtype=_e_regs.dtype)
+    e_regs = tr.full((*_e_regs.shape, 3), -2, device=device, dtype=itype)
     e_regs[..., 1] = _e_regs
-    a_regs = tr.full((*_a_regs.shape, 3), -2, device=_r_regs.device, dtype=_a_regs.dtype)
+    a_regs = tr.full((*_a_regs.shape, 3), -2, device=device, dtype=itype)
     a_regs[..., 2] = _a_regs
     all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-2)
     _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
+    print('--------- 2')
 
     # del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
 
@@ -89,6 +103,7 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
     # s_expanded = s[..., None].repeat_interleave(3, dim=-1)
     # all_regs_s = all_regs.gather(1, s_expanded)
     all_regs_s = tr.take_along_dim(all_regs, s[..., None], dim=-2)
+    print('--------- 3')
 
     forward_fill_jit(
         all_regs_s,
@@ -97,12 +112,14 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
         find_starts(vol, xs),
         dim=-2, fill_what=-2, inplace=True
     )
+    print('--------- 4')
 
     # segment intersection lengths with voxels
     # last segment in each ray is infinitely long
     inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), **spec)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
 
+    print('--------- 5')
 
     if not invalid:
         # zero out nan/inf lengths
@@ -123,13 +140,14 @@ def trace_indices(vol, xs, rays, spec=SPEC, ispec=ISPEC, invalid=False, debug=Fa
         # all_regs_s[all_regs_s[..., 0] < 0] = 0
         # all_regs_s[all_regs_s[..., 1] < 0] = 0
         # all_regs_s[all_regs_s[..., 2] < 0] = 0
+    print('--------- 6')
 
     if debug:
-        r_inds = tr.full((*_r_inds.shape, 3), -2, device=_r_inds.device, dtype=_r_inds.dtype)
+        r_inds = tr.full((*_r_inds.shape, 3), -2, device=device, dtype=itype)
         r_inds[..., 0] = _r_inds
-        e_inds = tr.full((*_e_inds.shape, 3), -2, device=_r_inds.device, dtype=_e_inds.dtype)
+        e_inds = tr.full((*_e_inds.shape, 3), -2, device=device, dtype=itype)
         e_inds[..., 1] = _e_inds
-        a_inds = tr.full((*_a_inds.shape, 3), -2, device=_r_inds.device, dtype=_a_inds.dtype)
+        a_inds = tr.full((*_a_inds.shape, 3), -2, device=device, dtype=itype)
         a_inds[..., 2] = _a_inds
         all_inds = tr.cat((r_inds, e_inds, a_inds), dim=-2)
         _all_inds = tr.cat((_r_inds, _e_inds, _a_inds), dim=-1)
@@ -187,15 +205,16 @@ def isclose(a, b, factor=4):
     # `resolution` is a bit more forgiving than `eps` (also tr.isclose doesn't scale with dtype)
     return abs(a - b) < tr.finfo(a.dtype).resolution ** (1/factor)
 
-def r_torch(rs, xs, rays, spec=SPEC, ispec=ISPEC):
+def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """Compute intersections of ray with concentric spheres
 
     Args:
         rs (tensor): radius of each sphere
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
-        spec (dict): type specification for floats
-        ispec (dict): type specification for ints
+        ftype (torch dtype): type specification for floats
+        itype (torch dtype): type specification for ints
+        device (str): torch device
 
     Returns:
         t (tensor): distance of each point from x along ray
@@ -206,6 +225,8 @@ def r_torch(rs, xs, rays, spec=SPEC, ispec=ISPEC):
 
     Reference: https://kylehalladay.com/blog/tutorial/math/2013/12/24/Ray-Sphere-Intersection.html
     """
+    spec = {'dtype': ftype, 'device': device}
+    ispec = {'dtype': itype, 'device': device}
     assert len(rs) - 1 < tr.iinfo(ispec['dtype']).max, "Too many rs!  Would cause overflow"
 
     xs = tr.asarray(xs, **spec)
@@ -255,7 +276,7 @@ def r_torch(rs, xs, rays, spec=SPEC, ispec=ISPEC):
     return t, regions, points, inds, negative_crossing
 
 
-def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
+def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """Compute intersections of rays with elevation cones
 
     Args:
@@ -263,8 +284,9 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
             or cone elevations (radians)
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
-        spec (dict): type specification for floats
-        ispec (dict): type specification for ints
+        ftype (torch dtype): type specification for floats
+        itype (torch dtype): type specification for ints
+        device (str): torch device
 
     Returns:
         t (tensor): distance of each point from x along ray
@@ -276,9 +298,12 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     Reference: http://lousodrome.net/blog/light/2017/01/03/intersection-of-a-ray-and-a-cone/
     Reference: "Intersection of a Line and a Cone", David Eberly, Geometric Tools
     """
+    spec = {'dtype': ftype, 'device': device}
+    ispec = {'dtype': itype, 'device': device}
 
     assert len(phis) - 1 < tr.iinfo(ispec['dtype']).max, "Too many phis!  Would cause overflow"
 
+    print('--------- 1.2.1')
     zero = tr.tensor(0, **spec)
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
@@ -292,6 +317,8 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
 
     v = tr.tensor((0, 0, 1), **spec)
 
+    print('--------- 1.2.2')
+
     dotproduct = lambda a, b: tr.einsum('...j,...j->...', a, b)
     a = rays[..., 2:]**2 - (tr.cos(phis)**2)[na_rays + (Ellipsis,)]
     b = 2 * (rays[..., 2:] * xs[..., 2:] - dotproduct(rays, xs)[..., None] * (tr.cos(phis)**2)[na_rays + (Ellipsis,)])
@@ -301,6 +328,7 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     # a = dotproduct(rays, v)[:, None] - (tr.cos(phis)**2)[None, :]
     # b = 2 * (dotproduct(rays, v) *)
 
+    print('--------- 1.2.3')
 
     # ray not parallel to cone
     delta = b**2 - 4*a*c
@@ -317,6 +345,7 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     t_normal[..., :len(phis)] = tr.where(is_single, -2*c / b, t1)
     t_normal[..., len(phis):] = tr.where(is_single, float('inf'), t2)
     del t1, t2
+    print('--------- 1.2.4')
 
     # --- ray parallel to cone ---
     t_parallel = tr.empty((*rshape, 2 * len(phis)), **spec)
@@ -328,6 +357,7 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     is_parallel[..., len(phis):] = is_parallel[..., :len(phis)]
     t = tr.where(is_parallel, t_parallel, t_normal)
     # del t_normal, t_parallel, is_parallel
+    print('--------- 1.2.5')
 
     # --- ray lies on cone ---
     t[..., :len(phis)][(a==0) * (b==0) * (c==0)] = float('inf')
@@ -337,6 +367,7 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
 
     inds = tr.cat((tr.arange(len(phis), **ispec), tr.arange(len(phis), **ispec)))
     inds = inds.repeat(*rshape, 1)
+    print('--------- 1.2.6')
 
     points = rays[..., na, :] * t[..., :, na] + xs[..., na, :]
 
@@ -353,11 +384,15 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
             axis=-1
         )
     )
-    points_normal /= tr.linalg.norm(points_normal, dim=-1)[..., na]
+    print('--------- 1.2.7')
+    # points_normal /= tr.linalg.norm(points_normal, dim=-1)[..., na]
+    print('--------- 1.2.7.1')
     # check whether crossing of plane is positive or negative
     dotproduct = lambda a, b: tr.einsum('...c,...bc->...b', a, b)
     prod = dotproduct(rays, points_normal)
+    print('--------- 1.2.7.2')
     negative_crossing = (prod > 0).type(tr.int8)
+    print('--------- 1.2.7.3')
     regions = inds - negative_crossing
 
     # ray just barely glances a cone, keep the region the same
@@ -365,7 +400,9 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     # a proper forward analysis of floating-point forward error propagation
     # to find upper bound on error at this point
     # https://www-users.cselabs.umn.edu/classes/Fall-2019/csci5304/FILES/LecN4.pdf
+    print('--------- 1.2.7.4')
     regions[isclose(prod, zero, factor=5)] = -2
+    print('--------- 1.2.8')
 
     # filter out intersections with opposite shadow cone
     phis_expanded = phis.repeat(2)
@@ -387,15 +424,16 @@ def e_torch(phis, xs, rays, spec=SPEC, ispec=ISPEC):
     return t, regions, points, inds, negative_crossing
 
 
-def a_torch(thetas, xs, rays, spec=SPEC, ispec=ISPEC):
+def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """Compute intersections of rays with azimuth planes
 
     Args:
         thetas (tensor): plane angles (radians)
         xs (tuple): starting points of rays (num_rays, 3)
         rays (tuple): directions of rays (num_rays, 3)
-        spec (dict): type specification for floats
-        ispec (dict): type specification for ints
+        ftype (torch dtype): type specification for floats
+        itype (torch dtype): type specification for ints
+        device (str): torch device
 
     Returns:
         t (tensor): distance of each point from x along ray
@@ -405,6 +443,9 @@ def a_torch(thetas, xs, rays, spec=SPEC, ispec=ISPEC):
         regions (tensor[int]): cone indices of each plane (num_planes).
 
     """
+    spec = {'dtype': ftype, 'device': device}
+    ispec = {'dtype': itype, 'device': device}
+
     assert len(thetas) - 1 < tr.iinfo(ispec['dtype']).max, "Too many thetas!  Would cause overflow"
 
     zero = tr.tensor(0, **spec)
@@ -511,7 +552,7 @@ def sph2cart(rea):
     return xyz
 
 
-def find_starts(vol, xs, spec=SPEC):
+def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
     """Compute voxel indices of ray start location at infinity
 
     Args:
@@ -519,10 +560,14 @@ def find_starts(vol, xs, spec=SPEC):
 
         vol (SphericalVol): spherical grid
         spec (dict): type specification for floats
+        ftype (torch dtype): type specification for floats
+        device (str): torch device
 
     Returns:
         regions (tensor)
     """
+    spec = {'dtype': ftype, 'device': device}
+
     rs, phis, thetas = (vol.rs, vol.phis, vol.thetas)
     rays, rs, phis, thetas = map(lambda x: tr.asarray(x, **spec), (xs, rs, phis, thetas))
     rays_sph = cart2sph(rays)
@@ -558,39 +603,109 @@ class Operator:
     Args:
         vol (SphericalVol): spherical grid extent/resolution information
         geom (ViewGeom): measurement locations and rays
+        dynamic (bool): whether input density is evolving (4D) or static (3D)
+        ftype (torch dtype): type specification for floats
+        itype (torch dtype): type specification for ints
+        device (str): torch device
     """
-    def __init__(self, vol, geom, spec=SPEC, ispec=ISPEC, debug=False, invalid=False):
+    def __init__(self, vol, geom, dynamic=False,
+                 ftype=FTYPE, itype=ITYPE, device=DEVICE,
+                 debug=False, invalid=False):
         self.vol = vol
         self.geom = geom
+        self.dynamic = dynamic
+        self.ftype = ftype
+        self.itype = itype
         self.regs, self.lens = trace_indices(
-            vol, geom.ray_starts, geom.rays, spec, ispec, invalid=invalid, debug=debug
+            vol, geom.ray_starts, geom.rays,
+            ftype=ftype, itype=itype, device=device,
+            invalid=invalid, debug=debug
         )
+
+        if dynamic and not isinstance(geom, ViewGeomCollection):
+            raise ValueError("geom must be ViewGeomCollection instance when dynamic=True")
 
     def __call__(self, density):
         """Lookup up density indices for all rays and compute
         inner-product with intersection length
 
         Args:
-            density (tensor): 3D tensor of shape `vol.shape`
+            density (tensor): 3D tensor of shape `vol.shape` if dynamic=False.  4D tensor
+                with first dimension equal to length of geom.shape[0] if dynamic=True
         """
-        return (density[self.regs] * self.lens).sum(axis=-1)
+        # FIXME: does branching here affect torch.compile?
+        if self.dynamic:
+            t = tr.arange(len(self.geom))[:, None, None, None]
+            return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
+        else:
+            return (density[self.regs] * self.lens).sum(axis=-1)
 
     def __repr__(self):
-        return f"Operator({self.vol.shape} → {self.geom.shape})"
+        if self.dynamic:
+            return f"Operator({(self.geom.shape[0], *self.vol.shape)} → {self.geom.shape})"
+        else:
+            return f"Operator({self.vol.shape} → {self.geom.shape})"
 
-    def plot(self, ax=None):
+
+    def plot(self, fig=None, ax=None):
         """Generate Matplotlib wireframe plot for this object
 
-        Args:
-            ax (matplotlib Axes3D): existing matplotlib axis to use
-
         Returns
-            matplotlib Axes3D
+            matplotlib Animation
         """
         import matplotlib.pyplot as plt
+        from matplotlib import animation
+        from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-        if ax is None:
-            ax = plt.axes(projection='3d')
-            ax.set_proj_type('persp')
+        if fig is None and ax is None:
+            fig = plt.figure(figsize=(3, 3))
+            ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
-        return self.geom.plot(self.vol.plot(ax))
+        self.vol.plot(ax)
+
+        wireframe = self.geom._wireframe
+
+        # segments, widths, colors = wireframe[0]
+        # lc = Line3DCollection(segments, linewidths=widths, colors=colors)
+        lc = Line3DCollection([])
+
+        def update(num):
+            segments, widths, colors = wireframe[num]
+            lc.set_segments(segments)
+            lc.set_linewidth(widths)
+            lc.set_colors(colors)
+            return lc,
+
+        # limits and labels
+        # lim = max(tr.linalg.norm(self.geom.ray_starts, dim=-1))
+        lim = tr.abs(self.geom.ray_starts).max()
+        ax.set_xlim3d([-lim, lim])
+        ax.set_xlabel('X')
+        ax.set_ylim3d([-lim, lim])
+        ax.set_ylabel('Y')
+        ax.set_zlim3d([-lim, lim])
+        ax.set_zlabel('Z')
+
+        ax.add_collection(lc)
+
+        # some stupid matplotlib stuff
+        # from matplotlib import rcParams
+        # from matplotlib.tight_bbox import adjust_bbox
+        # renderer = fig.canvas.get_renderer()
+        # bbox_inches = fig.get_tightbbox(renderer, )
+        # pad_inches = rcParams['savefig.pad_inches']
+        # bbox_inches = bbox_inches.padded(pad_inches)
+        # adjust_bbox(fig, bbox_inches, fig.canvas.fixed_dpi)
+
+        # fix whitespace
+        fig.subplots_adjust(left=0, top=1, bottom=0.1, right=.95, wspace=0, hspace=0)
+
+        N = len(wireframe)
+        # ani = animation.FuncAnimation(fig, update, N, interval=3000/N, blit=True)
+        ani = animation.FuncAnimation(fig, update, N, blit=True)
+        # def save(*args, **kwargs):
+        #     kwargs.setdefault()
+        #     return ani.save(*args, **kwargs)
+
+        # ani.save = save
+        return ani
