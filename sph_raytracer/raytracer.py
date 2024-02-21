@@ -12,20 +12,17 @@ na = None
 DEVICE = 'cpu'
 FTYPE = tr.float64
 ITYPE = tr.int8
-# SPEC = {'dtype': tr.float64, 'device': 'cpu'}
-# ISPEC = {'dtype': tr.int8, 'device': 'cpu'}
 
 @tr.jit.script
 def forward_fill_jit(x, initial, dim=-1, fill_what=0, inplace=False):
-    """Forward fill arbitrary dimension Pytorch tensor
-    over specific axis
+    """Forward fill arbitrary dimension Pytorch tensor over specific axis
 
     Args:
         x (tensor): tensor with values to forward fill
-        dim (int): dimension to fill
-        fill_what (float): value to be replaced
         initial (tensor or None): initial fill value.  If `x.shape` is (1, 2, 3, 4)
             and dim==-2, then `initial.shape` should be (1, 2, 4)
+        dim (int): dimension to fill
+        fill_what (float): value to be replaced
         inplace (bool): whether to make a copy of `t`
 
     Returns:
@@ -59,6 +56,12 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
         invalid (bool): filter out invalid lengths/regions
 
     Returns:
+        inds (tensor[int]): voxel indices of every voxel that ray intersects with
+            (*rays.shape, max_int_voxels, 3)
+        lens (tensor[float]): intersection length of each voxel with ray's path
+            (*rays.shape, max_int_voxels)
+
+    where `max_int_voxels` is `2*vol.shape[0] + 2*vol.shape[1] + vol.shape[2]`
 
     """
     spec = {'dtype': ftype, 'device': device}
@@ -219,11 +222,16 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     Returns:
         t (tensor): distance of each point from x along ray
             (*num_rays, 2 * num_spheres).  Can be negative
+        regions (tensor[int]): region index associated with each point
+            (*num_rays, num_spheres).
         points (tensor): intersection points of rays with spheres
             (*num_rays, 2 * num_spheres, 3)
-        inds (tensor[int]): sphere indices of each point (*num_rays, 2 * num_spheres)
+        inds (tensor[int]): geometry index that the point lies on
+            (*num_rays, 2 * num_spheres)
+        negative_crossing (tensor[int]): whether ray crosses geometry in
+            positive or negative direction (*num_rays, 2 * num_spheres)
 
-    Reference: https://kylehalladay.com/blog/tutorial/math/2013/12/24/Ray-Sphere-Intersection.html
+    Ref: https://kylehalladay.com/blog/tutorial/math/2013/12/24/Ray-Sphere-Intersection.html
     """
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
@@ -291,12 +299,17 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     Returns:
         t (tensor): distance of each point from x along ray
             (*num_rays, 2 * num_cones).  Can be negative
+        regions (tensor[int]): region index associated with each point
+            (*num_rays, 2 * num_cones).
         points (tensor): intersection points of rays with cones
             (*num_rays, 2 * num_cones, 3)
-        inds (tensor[int]): cone indices of each point (2 * num_cones)
+        inds (tensor[int]): geometry index that the point lies on
+            (*num_rays, 2 * num_cones)
+        negative_crossing (tensor[int]): whether ray crosses geometry in
+            positive or negative direction (*num_rays, 2 * num_cones)
 
-    Reference: http://lousodrome.net/blog/light/2017/01/03/intersection-of-a-ray-and-a-cone/
-    Reference: "Intersection of a Line and a Cone", David Eberly, Geometric Tools
+    Ref: http://lousodrome.net/blog/light/2017/01/03/intersection-of-a-ray-and-a-cone/
+    Ref: "Intersection of a Line and a Cone", David Eberly, Geometric Tools
     """
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
@@ -437,10 +450,15 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     Returns:
         t (tensor): distance of each point from x along ray
-            (num_rays, num_planes).  Can be negative
-        points (tensor): intersection points of rays with planes
-            (num_rays, num_planes, 3)
-        regions (tensor[int]): cone indices of each plane (num_planes).
+            (*num_rays, num_planes).  Can be negative
+        regions (tensor[int]): region index associated with each point
+            (*num_rays, num_planes).
+        points (tensor[float]): intersection points of rays with planes
+            (*num_rays, num_planes, 3)
+        inds (tensor[int]): geometry index that the point lies on
+            (*num_rays, num_planes)
+        negative_crossing (tensor[int]): whether ray crosses geometry in
+            positive or negative direction (*num_rays, num_planes)
 
     """
     spec = {'dtype': ftype, 'device': device}
@@ -632,6 +650,9 @@ class Operator:
         Args:
             density (tensor): 3D tensor of shape `vol.shape` if dynamic=False.  4D tensor
                 with first dimension equal to length of geom.shape[0] if dynamic=True
+
+        Returns:
+            line_integrations (tensor): integrated lines of sight of shape `geom.shape`
         """
         # FIXME: does branching here affect torch.compile?
         if self.dynamic:
