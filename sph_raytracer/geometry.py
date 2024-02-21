@@ -4,6 +4,8 @@ from collections import namedtuple
 import math
 import torch as tr
 
+__all__ = ['SphericalVol', 'ConeRectGeom', 'ConeCircGeom', 'ViewGeomCollection', 'ViewGeom']
+
 Size = namedtuple('Size', ['r', 'e', 'a'])
 Shape = namedtuple('Shape', ['r', 'e', 'a'])
 
@@ -126,17 +128,17 @@ class SphericalVol:
             ax.set_proj_type('persp')
 
         # Make data
-        u = tr.linspace(0, 2 * tr.pi, 100)
-        v = tr.linspace(0, tr.pi, 100)
+        u = tr.linspace(0, 2 * tr.pi, 20)
+        v = tr.linspace(0, tr.pi, 20)
         x = tr.outer(tr.cos(u), tr.sin(v)) * self.size[0][1]
         y = tr.outer(tr.sin(u), tr.sin(v)) * self.size[0][1]
         z = tr.outer(tr.ones_like(u), tr.cos(v)) * self.size[0][1]
 
         # Plot the surface
-        ax.plot_surface(x, y, z)
+        artist = ax.plot_surface(x, y, z, zorder=-999)
         ax.set_aspect('equal')
 
-        return ax
+        return artist
 
 
 # ----- Viewing Geometry -----
@@ -147,10 +149,6 @@ Segment = namedtuple('Segment', ['color', 'thickness', 'start', 'end'])
 class ViewGeom:
     """Custom sensor with arbitrary ray placement"""
 
-    # def make2d(self, x):
-    #     """Make a 1D input into a 2D tensor"""
-    #     return tr.asarray(x, dtype=tr.float)[None, :]
-
     def __init__(self, ray_starts, rays):
         self.ray_starts = tr.asarray(ray_starts, dtype=tr.float)
         self.rays = tr.asarray(rays, dtype=tr.float)
@@ -160,37 +158,18 @@ class ViewGeom:
     def __add__(self, other):
         if other == 0:
             return ViewGeomCollection(self)
+        if isinstance(other, ViewGeomCollection):
+            other.geoms.append(self)
+            return other
         else:
             return ViewGeomCollection(self, other)
 
     def __radd__(self, other):
         return self.__add__(other)
 
-    def plot(self, ax=None):
-        """Generate Matplotlib wireframe plot for this object
-
-        Args:
-            ax (matplotlib Axes3D): existing matplotlib axis to use
-
-        Returns
-            matplotlib Axes3D
-        """
-        import matplotlib.pyplot as plt
-
-        if ax is None:
-            ax = plt.axes(projection='3d')
-            ax.set_proj_type('persp')
-
-        for s in self._wireframe():
-            # defining coordinates for the 2 points.
-            x, y, z = zip(s.start, s.end)
-            ax.plot3D(x, y, z, color=s.color)
-
-        ax.set_aspect('equal')
-        return ax
-
     def __repr__(self):
-        string = f"""ViewGeom(
+        cls = self.__class__.__name__
+        string = f"""{cls}(
             shape={tuple(self.shape)}
         )"""
         from inspect import cleandoc
@@ -206,7 +185,28 @@ class ViewGeomCollection(ViewGeom):
     def __init__(self, *geoms):
         if not all(g.shape == geoms[0].shape for g in geoms):
             raise ValueError("ViewGeoms must all have same shape")
-        self.geoms = geoms
+        self.geoms = list(geoms)
+
+    def __add__(self, other):
+        if isinstance(other, ViewGeomCollection):
+            self.geoms += other.geoms
+            other.geoms += self.geoms
+        else:
+            self.geoms.append(other)
+        return self
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __getitem__(self, ind):
+        return self.geoms[ind]
+
+    def __len__(self):
+        return len(self.geoms)
+
+    @property
+    def shape(self):
+        return (len(self.geoms), *self.geoms[0].shape)
 
     @property
     def rays(self):
@@ -216,8 +216,10 @@ class ViewGeomCollection(ViewGeom):
     def ray_starts(self):
         return tr.concat(tuple(g.ray_starts[None, ...] for g in self.geoms))
 
+    @property
     def _wireframe(self):
-        return sum([g._wireframe() for g in self.geoms], [])
+        """(segments, widths, colors): Wireframe for 3D visualization"""
+        return sum([g._wireframe for g in self.geoms], [])
 
 
 class ConeRectGeom(ViewGeom):
@@ -231,9 +233,12 @@ class ConeRectGeom(ViewGeom):
         fov (tuple[float]): detector field of view (fov_x, fov_y)
     """
 
-    def __init__(self, shape, pos, lookdir, updir=(0, 0, 1), fov=(45, 45)):
+    def __init__(self, shape, pos, lookdir=None, updir=(0, 0, 1), fov=(45, 45)):
         pos = tr.asarray(pos, dtype=tr.float)
-        lookdir = tr.asarray(lookdir, dtype=tr.float)
+        if lookdir is None:
+            lookdir = -pos
+        else:
+            lookdir = tr.asarray(lookdir, dtype=tr.float)
         updir = tr.asarray(updir, dtype=tr.float)
         fov = tr.asarray(fov, dtype=tr.float)
         lookdir /= tr.linalg.norm(lookdir, axis=-1)
@@ -277,19 +282,19 @@ class ConeRectGeom(ViewGeom):
         from inspect import cleandoc
         return cleandoc(string)
 
+    @property
     def _wireframe(self):
-        """Generate wireframe for 3D visualization"""
+        """(segments, widths, colors): Wireframe for 3D visualization"""
         # draw FOV corners
 
         corners = self.rays[(-1, -1, 0, 0), (0, -1, -1, 0)]
         corners *= tr.linalg.norm(self.pos)
-        segments = [
-            Segment('gray', 1, self.pos, c) for c in corners
-        ]
-        segments += [
-            Segment('gray', 1, c1, c2) for c1, c2 in zip(corners, corners.roll(-1, dims=0))
-        ]
-        return segments
+
+        cone_lines = tr.stack((self.pos.broadcast_to(corners.shape), corners), dim=1)
+        plane_lines = tr.stack((corners, corners.roll(-1, dims=0)), dim=1)
+
+        segments = tr.concat((cone_lines, plane_lines))
+        return [[segments, tr.ones(len(segments)), ['darkgray'] * len(segments)]]
 
 
 class ConeCircGeom(ConeRectGeom):
@@ -323,3 +328,19 @@ class ConeCircGeom(ConeRectGeom):
         )
         rays /= tr.linalg.norm(rays, axis=-1)[..., None]
         return rays
+
+    @property
+    def _wireframe(self):
+        """(segments, widths, colors): Wireframe for 3D visualization"""
+
+        outer = self.rays[-1]
+        outer *= tr.linalg.norm(self.pos)
+
+        # sample up to 5 points on outer edge
+        sampling = math.ceil(len(outer) / 4)
+        cone_lines = tr.stack((self.pos.broadcast_to(outer[::sampling].shape), outer[::sampling]), dim=1)
+        # endplane
+        plane_lines = tr.stack((outer, outer.roll(-1, dims=0)), dim=1)
+
+        segments = tr.concat((cone_lines, plane_lines))
+        return [[segments, tr.ones(len(segments)), ['darkgray'] * len(segments)]]
