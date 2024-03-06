@@ -294,7 +294,7 @@ class ConeRectGeom(ViewGeom):
         plane_lines = tr.stack((corners, corners.roll(-1, dims=0)), dim=1)
 
         segments = tr.concat((cone_lines, plane_lines))
-        return [[segments, tr.ones(len(segments)), ['darkgray'] * len(segments)]]
+        return [[segments, tr.ones(len(segments)), ['dimgray'] * len(segments)]]
 
 
 class ConeCircGeom(ConeRectGeom):
@@ -343,4 +343,4 @@ class ConeCircGeom(ConeRectGeom):
         plane_lines = tr.stack((outer, outer.roll(-1, dims=0)), dim=1)
 
         segments = tr.concat((cone_lines, plane_lines))
-        return [[segments, tr.ones(len(segments)), ['darkgray'] * len(segments)]]
+        return [[segments, tr.ones(len(segments)), ['dimgray'] * len(segments)]]

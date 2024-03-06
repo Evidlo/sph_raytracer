@@ -248,6 +248,8 @@ def test_conerectgeom():
     g = ConeRectGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(23, 45))
     # check lookdir
     assert check(g.rays[0, 0], g.lookdir)
+    # generate wireframe
+    g._wireframe
 
 
 def test_conecircgeom():
@@ -262,3 +264,5 @@ def test_conecircgeom():
     g = ConeCircGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=45)
     # check lookdir
     assert check(g.rays[0, 0], g.lookdir)
+    # generate wireframe
+    g._wireframe
