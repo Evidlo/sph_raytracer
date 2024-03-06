@@ -650,8 +650,9 @@ class Operator:
     def plot(self, ax=None):
         """Generate Matplotlib wireframe plot for this object
 
-        Returns
-            matplotlib Animation
+        Returns:
+            matplotlib Animation if dynamic density
+            matplotlib Axes if static density
         """
         import matplotlib.pyplot as plt
         from matplotlib import animation
@@ -668,6 +669,7 @@ class Operator:
         # segments, widths, colors = wireframe[0]
         # lc = Line3DCollection(segments, linewidths=widths, colors=colors)
         lc = Line3DCollection([])
+        ax.add_collection(lc)
 
         def update(num):
             segments, widths, colors = wireframe[num]
@@ -676,31 +678,22 @@ class Operator:
             lc.set_colors(colors)
             return lc,
         self._update = update
+        update(0)
         # limits and labels
         # lim = max(tr.linalg.norm(self.geom.ray_starts, dim=-1))
         lim = tr.abs(self.geom.ray_starts).max()
-        ax.set_xlim3d([-lim, lim])
         ax.set_xlabel('X')
-        ax.set_ylim3d([-lim, lim])
         ax.set_ylabel('Y')
-        ax.set_zlim3d([-lim, lim])
         ax.set_zlabel('Z')
-
-        ax.add_collection(lc)
-
-        # some stupid matplotlib stuff
-        # from matplotlib import rcParams
-        # from matplotlib.tight_bbox import adjust_bbox
-        # renderer = fig.canvas.get_renderer()
-        # bbox_inches = fig.get_tightbbox(renderer, )
-        # pad_inches = rcParams['savefig.pad_inches']
-        # bbox_inches = bbox_inches.padded(pad_inches)
-        # adjust_bbox(fig, bbox_inches, fig.canvas.fixed_dpi)
+        ax.set_xlim3d([-lim, lim])
+        ax.set_ylim3d([-lim, lim])
+        ax.set_zlim3d([-lim, lim])
 
         # fix whitespace
         # fig.subplots_adjust(left=0, top=1, bottom=0.1, right=.95, wspace=0, hspace=0)
 
-        N = len(wireframe)
-        ani = animation.FuncAnimation(ax.figure, update, N, interval=3000/N, blit=False)
-
-        return ani
+        if self.dynamic:
+            N = len(wireframe)
+            return animation.FuncAnimation(ax.figure, update, N, interval=3000/N, blit=False)
+        else:
+            return ax
