@@ -67,16 +67,11 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
 
-    print('--------- 1')
     # --- compute voxel indices for all rays and their distances ---
-    print('--------- 1.1')
     r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs, xs, rays, ftype=ftype, itype=itype, device=device)
-    print('--------- 1.2')
     e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis, xs, rays, ftype=ftype, itype=itype, device=device)
-    print('--------- 1.3')
     a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas, xs, rays, ftype=ftype, itype=itype, device=device)
 
-    print('--------- 1.4')
     # concatenate intersection distances/points from all geometry kinds
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
     # del r_t, e_t, a_t
@@ -91,7 +86,6 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     a_regs[..., 2] = _a_regs
     all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-2)
     _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
-    print('--------- 2')
 
     # del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
 
@@ -106,23 +100,20 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     # s_expanded = s[..., None].repeat_interleave(3, dim=-1)
     # all_regs_s = all_regs.gather(1, s_expanded)
     all_regs_s = tr.take_along_dim(all_regs, s[..., None], dim=-2)
-    print('--------- 3')
 
     forward_fill_jit(
         all_regs_s,
         # tr.full_like(all_regs_s, -2)[..., 0, :],
         # find_starts(vol, rays),
-        find_starts(vol, xs),
+        find_starts(vol, xs, ftype=ftype, device=device),
         dim=-2, fill_what=-2, inplace=True
     )
-    print('--------- 4')
 
     # segment intersection lengths with voxels
     # last segment in each ray is infinitely long
     inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), **spec)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
 
-    print('--------- 5')
 
     if not invalid:
         # zero out nan/inf lengths
@@ -143,7 +134,6 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
         # all_regs_s[all_regs_s[..., 0] < 0] = 0
         # all_regs_s[all_regs_s[..., 1] < 0] = 0
         # all_regs_s[all_regs_s[..., 2] < 0] = 0
-    print('--------- 6')
 
     if debug:
         r_inds = tr.full((*_r_inds.shape, 3), -2, device=device, dtype=itype)
@@ -316,7 +306,6 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     assert len(phis) - 1 < tr.iinfo(ispec['dtype']).max, "Too many phis!  Would cause overflow"
 
-    print('--------- 1.2.1')
     zero = tr.tensor(0, **spec)
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
@@ -330,8 +319,6 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     v = tr.tensor((0, 0, 1), **spec)
 
-    print('--------- 1.2.2')
-
     dotproduct = lambda a, b: tr.einsum('...j,...j->...', a, b)
     a = rays[..., 2:]**2 - (tr.cos(phis)**2)[na_rays + (Ellipsis,)]
     b = 2 * (rays[..., 2:] * xs[..., 2:] - dotproduct(rays, xs)[..., None] * (tr.cos(phis)**2)[na_rays + (Ellipsis,)])
@@ -340,8 +327,6 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     # a = dotproduct(rays, v)[:, None] - (tr.cos(phis)**2)[None, :]
     # b = 2 * (dotproduct(rays, v) *)
-
-    print('--------- 1.2.3')
 
     # ray not parallel to cone
     delta = b**2 - 4*a*c
@@ -358,7 +343,6 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     t_normal[..., :len(phis)] = tr.where(is_single, -2*c / b, t1)
     t_normal[..., len(phis):] = tr.where(is_single, float('inf'), t2)
     del t1, t2
-    print('--------- 1.2.4')
 
     # --- ray parallel to cone ---
     t_parallel = tr.empty((*rshape, 2 * len(phis)), **spec)
@@ -370,7 +354,6 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     is_parallel[..., len(phis):] = is_parallel[..., :len(phis)]
     t = tr.where(is_parallel, t_parallel, t_normal)
     # del t_normal, t_parallel, is_parallel
-    print('--------- 1.2.5')
 
     # --- ray lies on cone ---
     t[..., :len(phis)][(a==0) * (b==0) * (c==0)] = float('inf')
@@ -380,7 +363,6 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     inds = tr.cat((tr.arange(len(phis), **ispec), tr.arange(len(phis), **ispec)))
     inds = inds.repeat(*rshape, 1)
-    print('--------- 1.2.6')
 
     points = rays[..., na, :] * t[..., :, na] + xs[..., na, :]
 
@@ -397,15 +379,11 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
             axis=-1
         )
     )
-    print('--------- 1.2.7')
     # points_normal /= tr.linalg.norm(points_normal, dim=-1)[..., na]
-    print('--------- 1.2.7.1')
     # check whether crossing of plane is positive or negative
     dotproduct = lambda a, b: tr.einsum('...c,...bc->...b', a, b)
     prod = dotproduct(rays, points_normal)
-    print('--------- 1.2.7.2')
     negative_crossing = (prod > 0).type(tr.int8)
-    print('--------- 1.2.7.3')
     regions = inds - negative_crossing
 
     # ray just barely glances a cone, keep the region the same
@@ -413,9 +391,7 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # a proper forward analysis of floating-point forward error propagation
     # to find upper bound on error at this point
     # https://www-users.cselabs.umn.edu/classes/Fall-2019/csci5304/FILES/LecN4.pdf
-    print('--------- 1.2.7.4')
     regions[isclose(prod, zero, factor=5)] = -2
-    print('--------- 1.2.8')
 
     # filter out intersections with opposite shadow cone
     phis_expanded = phis.repeat(2)
@@ -621,27 +597,30 @@ class Operator:
     Args:
         vol (SphericalVol): spherical grid extent/resolution information
         geom (ViewGeom): measurement locations and rays
-        dynamic (bool): whether input density is evolving (4D) or static (3D)
         ftype (torch dtype): type specification for floats
         itype (torch dtype): type specification for ints
         device (str): torch device
+        dynamic (bool): force whether input density is evolving (4D) or static (3D)
     """
     def __init__(self, vol, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE,
                  debug=False, invalid=False):
         self.vol = vol
         self.geom = geom
+        if dynamic is None:
+            dynamic = True if isinstance(geom, ViewGeomCollection) else False
         self.dynamic = dynamic
         self.ftype = ftype
         self.itype = itype
+        self.device = device
         self.regs, self.lens = trace_indices(
             vol, geom.ray_starts, geom.rays,
             ftype=ftype, itype=itype, device=device,
             invalid=invalid, debug=debug
         )
 
-        if dynamic and not isinstance(geom, ViewGeomCollection):
-            raise ValueError("geom must be ViewGeomCollection instance when dynamic=True")
+        # if dynamic and not isinstance(geom, ViewGeomCollection):
+        #     raise ValueError("geom must be ViewGeomCollection instance when dynamic=True")
 
     def __call__(self, density):
         """Lookup up density indices for all rays and compute
@@ -668,7 +647,7 @@ class Operator:
             return f"Operator({self.vol.shape} → {self.geom.shape})"
 
 
-    def plot(self, fig=None, ax=None):
+    def plot(self, ax=None):
         """Generate Matplotlib wireframe plot for this object
 
         Returns
@@ -678,7 +657,7 @@ class Operator:
         from matplotlib import animation
         from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-        if fig is None and ax is None:
+        if ax is None:
             fig = plt.figure(figsize=(3, 3))
             ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
@@ -696,7 +675,7 @@ class Operator:
             lc.set_linewidth(widths)
             lc.set_colors(colors)
             return lc,
-
+        self._update = update
         # limits and labels
         # lim = max(tr.linalg.norm(self.geom.ray_starts, dim=-1))
         lim = tr.abs(self.geom.ray_starts).max()
@@ -719,14 +698,9 @@ class Operator:
         # adjust_bbox(fig, bbox_inches, fig.canvas.fixed_dpi)
 
         # fix whitespace
-        fig.subplots_adjust(left=0, top=1, bottom=0.1, right=.95, wspace=0, hspace=0)
+        # fig.subplots_adjust(left=0, top=1, bottom=0.1, right=.95, wspace=0, hspace=0)
 
         N = len(wireframe)
-        # ani = animation.FuncAnimation(fig, update, N, interval=3000/N, blit=True)
-        ani = animation.FuncAnimation(fig, update, N, blit=True)
-        # def save(*args, **kwargs):
-        #     kwargs.setdefault()
-        #     return ani.save(*args, **kwargs)
+        ani = animation.FuncAnimation(ax.figure, update, N, interval=3000/N, blit=False)
 
-        # ani.save = save
         return ani
