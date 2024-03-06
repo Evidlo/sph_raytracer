@@ -239,8 +239,8 @@ def test_conerectgeom():
     g = ConeRectGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(23, 45))
 
     # check fov angles
-    assert check(tr.dot(g.rays[0, 5], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[0])))
-    assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[1])))
+    assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[0])))
+    assert check(tr.dot(g.rays[0, 5], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[1])))
     # check lookdir
     assert check(g.rays[5, 5], g.lookdir)
 
