@@ -4,7 +4,7 @@ from collections import namedtuple
 import math
 import torch as tr
 
-from .raytracer import r_torch, e_torch, a_torch, trace_indices, find_starts
+from .raytracer import r_torch, e_torch, a_torch, Operator, find_starts
 from .geometry import *
 
 def check(a, b):
@@ -191,7 +191,7 @@ def test_find_starts():
     assert check(s, [-1, 2, 2])
 
 
-def test_trace_indices():
+def test_operator():
     # trace through center of solid sphere
     vols = [
         SphericalVol(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi))),
@@ -227,9 +227,12 @@ def test_trace_indices():
         [-0.99998629093170166016,  0.00413372274488210678, 0.00321511807851493359],
     ]
     for vol in vols:
-        regions, lens = trace_indices(vol, xs, rays)
+        geom = ViewGeom(xs, rays)
+        op = Operator(vol, geom)
+        # regions, lens = trace_indices(vol, xs, rays)
         d = tr.ones(vol.shape)
-        result = (d[regions] * lens).sum(axis=-1)
+        result = op(d)
+        # result = (d[regions] * lens).sum(axis=-1)
         diam = 2 * (vol.size[0][1] - vol.size[0][0])
         ray_success = tr.isclose(result, tr.tensor(diam, dtype=result.dtype))
         fail_str = f"Failure for vol={vol} for ray #s {tr.where(ray_success == False)[0].tolist()}"

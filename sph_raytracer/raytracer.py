@@ -14,7 +14,7 @@ FTYPE = tr.float64
 ITYPE = tr.int8
 
 @tr.jit.script
-def forward_fill_jit(x, initial, dim=-1, fill_what=0, inplace=False):
+def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False):
     """Forward fill arbitrary dimension Pytorch tensor over specific axis
 
     Args:
@@ -619,6 +619,10 @@ class Operator:
             invalid=invalid, debug=debug
         )
 
+        # NOTE: we flatten regs and lens here because otherwise PyTorch uses too much memory
+        # self.orig_shape = self.regs.shape[:-1]
+        # self.regs, self.lens = self.regs.flatten(), self.lens.flatten()
+
         # if dynamic and not isinstance(geom, ViewGeomCollection):
         #     raise ValueError("geom must be ViewGeomCollection instance when dynamic=True")
 
@@ -633,10 +637,10 @@ class Operator:
         Returns:
             line_integrations (tensor): integrated lines of sight of shape `geom.shape`
         """
-        # FIXME: does branching here affect torch.compile?
         if self.dynamic:
-            t = tr.arange(len(self.geom))[:, None, None, None]
+            t = tr.arange(len(density))[:, None, None, None]
             return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
+            # NOTE: this is a flattened form of the above which uses less memory
         else:
             return (density[self.regs] * self.lens).sum(axis=-1)
 
@@ -651,8 +655,8 @@ class Operator:
         """Generate Matplotlib wireframe plot for this object
 
         Returns:
-            matplotlib Animation if dynamic density
-            matplotlib Axes if static density
+            matplotlib Animation if dynamic density or multiple vantages
+            matplotlib Axes if static density and single vantage
         """
         import matplotlib.pyplot as plt
         from matplotlib import animation
@@ -692,8 +696,8 @@ class Operator:
         # fix whitespace
         # fig.subplots_adjust(left=0, top=1, bottom=0.1, right=.95, wspace=0, hspace=0)
 
-        if self.dynamic:
+        if not self.dynamic and len(wireframe) == 1:
+            return ax
+        else:
             N = len(wireframe)
             return animation.FuncAnimation(ax.figure, update, N, interval=3000/N, blit=False)
-        else:
-            return ax

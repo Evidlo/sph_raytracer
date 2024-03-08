@@ -3,7 +3,7 @@ name = "sph_raytracer"
 version = "0.0.1"
 description = "PyTorch volume raytracer in spherical coordinates"
 dependencies = [
-  "torch"
+  "torch>=1.12.1"
 ]
 authors = [
   {name = "Evan Widloski", email = "evan_gh@widloski.com"}

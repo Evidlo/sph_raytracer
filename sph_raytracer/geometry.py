@@ -33,9 +33,9 @@ class SphericalVol:
     Usage:
         SphericalVol(((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), (50, 50, 50))
         SphericalVol(
-            rs=tr.linspace(3, 25, 10),
-            phis=tr.linspace(0, tr.pi, 10),
-            thetas=tr.linspace(-tr.pi, tr.pi, 10)
+            rs=tr.linspace(3, 25, 51),
+            phis=tr.linspace(0, tr.pi, 51),
+            thetas=tr.linspace(-tr.pi, tr.pi, 51)
         )
 
     Below is an illustration of where grid indices are located relative to
@@ -152,8 +152,8 @@ class ViewGeom:
     def __init__(self, ray_starts, rays):
         self.ray_starts = tr.asarray(ray_starts, dtype=tr.float)
         self.rays = tr.asarray(rays, dtype=tr.float)
-        self.rays /= tr.linalg.norm(rays, axis=-1)
-        self.shape = lambda self: self.rays.shape[:-1]
+        self.rays /= tr.linalg.norm(self.rays, axis=-1)[..., None]
+        self.shape = self.rays.shape[:-1]
 
     def __add__(self, other):
         if other == 0:
