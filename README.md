@@ -5,7 +5,7 @@ A PyTorch volume raytracer in spherical coordinates.
 ## Quickstart
 
     pip install sph_raytracer
-    python example.py
+    python examples/single_vantage.py
 
 ![example output](example.png)
 
