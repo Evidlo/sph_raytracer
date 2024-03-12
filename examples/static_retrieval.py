@@ -37,12 +37,12 @@ result = op(x)
 # %% plot
 
 plt.close('all')
-fig = plt.figure()
+fig = plt.figure(figsize=(10, 4))
 ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2, projection='3d')
 
 ax1.set_title('Nested Shells')
-ani1 = image_stack(result, ax1)
+ani1 = image_stack(result, ax1, colorbar=True)
 
 ax2.set_title('View Geometry')
 ani2 = op.plot(ax2)

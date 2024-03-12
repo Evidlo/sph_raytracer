@@ -32,7 +32,7 @@ ax1 = fig.add_subplot(1, 2, 1)
 ax2 = fig.add_subplot(1, 2, 2, projection='3d')
 
 ax1.set_title('Nested Shells')
-ax1.imshow(result)
+ax1.imshow(result.detach().cpu())
 
 ax2.set_title('View Geometry')
 ani = op.plot(ax2)

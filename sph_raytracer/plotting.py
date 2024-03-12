@@ -76,13 +76,14 @@ from itertools import chain
 #         return self.__add__(other)
 
 
-def image_stack(images, ax=None, polar=False, **kwargs):
+def image_stack(images, ax=None, polar=False, colorbar=False, **kwargs):
     """Animate a stack of images
 
     Args:
         images (ndarray or tensor): array of shape (num_images, width, height)
         ax (matplotlib Axes, optional): existing Axes object to use
         polar (bool): polar plot
+        colorbar (bool): include a colorbar
         **kwargs: arguments to pass to plot
 
     Returns:
@@ -105,7 +106,13 @@ def image_stack(images, ax=None, polar=False, **kwargs):
     else:
         imshow = ax.imshow
 
+    vmin, vmax = images.min(), images.max()
     # artists = [[ax.imshow(im, animated=True)] for im in images]
-    artists = [[imshow(im, animated=True, **kwargs)] for im in images]
+    artists = [[imshow(im, animated=True, vmin=vmin, vmax=vmax, **kwargs)] for im in images]
+
+    if colorbar:
+        ax_col = ax.twinx()
+        ax_col.tick_params(which="both", right=False, labelright=False)
+        plt.colorbar(artists[0][0], ax=ax_col)
 
     return animation.ArtistAnimation(ax.figure, artists, interval=200)
