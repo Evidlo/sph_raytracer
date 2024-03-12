@@ -183,7 +183,7 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     return tuple(all_regs_s.moveaxis(-1, 0).type(tr.int64)), all_lens_s
 
 
-def isclose(a, b, factor=4):
+def isclose(a, b, factor=3):
     """Detect whether a/b are close.  Like tr.isclose but scales with dtype
 
     Args:
@@ -391,7 +391,7 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # a proper forward analysis of floating-point forward error propagation
     # to find upper bound on error at this point
     # https://www-users.cselabs.umn.edu/classes/Fall-2019/csci5304/FILES/LecN4.pdf
-    regions[isclose(prod, zero, factor=5)] = -2
+    regions[isclose(prod, zero)] = -2
 
     # filter out intersections with opposite shadow cone
     phis_expanded = phis.repeat(2)
