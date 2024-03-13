@@ -3,10 +3,10 @@
 import torch as t
 import matplotlib.pyplot as plt
 
-from sph_raytracer import SphericalVol, ConeRectGeom, Operator
+from sph_raytracer import SphericalGrid, ConeRectGeom, Operator
 
 # define volume grid and viewing geometry vantage
-vol = SphericalVol(shape=(50, 50, 50))
+vol = SphericalGrid(shape=(50, 50, 50))
 geom = ConeRectGeom(
     shape=(256, 256),
     pos=(5, 0, 0),

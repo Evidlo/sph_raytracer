@@ -48,7 +48,7 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     and points which lie outside radius `max_r` (inplace)
 
     Args:
-        vol (SphericalVol): spherical grid
+        vol (SphericalGrid): spherical grid
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
         ftype (torch dtype): type specification for floats
@@ -552,7 +552,7 @@ def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
     Args:
         rays (tensor): directions of rays (*num_rays, 3)
 
-        vol (SphericalVol): spherical grid
+        vol (SphericalGrid): spherical grid
         spec (dict): type specification for floats
         ftype (torch dtype): type specification for floats
         device (str): torch device
@@ -595,7 +595,7 @@ class Operator:
     """Raytracing operator
 
     Args:
-        vol (SphericalVol): spherical grid extent/resolution information
+        vol (SphericalGrid): spherical grid extent/resolution information
         geom (ViewGeom): measurement locations and rays
         ftype (torch dtype): type specification for floats
         itype (torch dtype): type specification for ints

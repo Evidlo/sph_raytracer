@@ -5,20 +5,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from glide.science.plotting import *
 
-from sph_raytracer import SphericalVol, ConeRectGeom, Operator, ViewGeomCollection
+from sph_raytracer import SphericalGrid, ConeRectGeom, Operator, ViewGeomCollection
 
 
-vol = SphericalVol(shape=(50, 50, 50))
-vol = SphericalVol(shape=(1, 4, 1))
+vol = SphericalGrid(shape=(50, 50, 50))
+vol = SphericalGrid(shape=(1, 4, 1))
 
 # theta = 2 * np.pi * (2/5)
 # theta = np.pi
 # pos = np.array((np.cos(theta), np.sin(theta), 0.5))
 geom = ConeRectGeom(
-    shape=(10, 10),
+    shape=(100, 100),
     pos=[5, 0, .02],
     lookdir=[-1, 0, 0],
-    fov=(3, 3)
+    # fov=(3, 3)
+    fov=(30, 30)
     # fov=(2, 2)
 )
 # geom.rays = geom.rays[5:6, 6:7]

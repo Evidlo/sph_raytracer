@@ -3,11 +3,11 @@
 import torch as t
 import matplotlib.pyplot as plt
 
-from sph_raytracer import SphericalVol, ConeRectGeom, Operator
+from sph_raytracer import SphericalGrid, ConeRectGeom, Operator
 from sph_raytracer.plotting import image_stack
 
 # define volume grid and viewing geometry vantage
-vol = SphericalVol(shape=(50, 50, 50))
+vol = SphericalGrid(shape=(50, 50, 50))
 # define a simple circular orbit around the origin
 geoms = []
 for theta in t.linspace(0, 2*t.pi, 10):
@@ -29,7 +29,6 @@ x = t.zeros(vol.shape, device=op.device)
 x[:, 25:, :25] = 1
 x[:, :25, 25:] = 1
 
-from contexttimer import Timer
 
 result = op(x)
 

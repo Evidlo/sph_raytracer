@@ -174,19 +174,19 @@ def test_a():
 
 
 def test_spherical_vol():
-    vol = SphericalVol(shape=(10, 11, 12))
+    vol = SphericalGrid(shape=(10, 11, 12))
     assert (len(vol.rs), len(vol.phis), len(vol.thetas)) == (11, 12, 13)
-    vol = SphericalVol(rs=[1, 2], phis=[1, 2, 3], thetas=[1, 2, 3, 4])
+    vol = SphericalGrid(rs=[1, 2], phis=[1, 2, 3], thetas=[1, 2, 3, 4])
     assert vol.shape == (1, 2, 3)
 
 def test_find_starts():
-    vol = SphericalVol(shape=(5, 5, 1))
+    vol = SphericalGrid(shape=(5, 5, 1))
     s = find_starts(vol, [0, 0, 100])
     assert check(s, [-1, 0, 0])
     s = find_starts(vol, [0, 0, -100])
     assert check(s, [-1, 4, 0])
 
-    vol = SphericalVol(shape=(5, 5, 5))
+    vol = SphericalGrid(shape=(5, 5, 5))
     s = find_starts(vol, [100, 0, 0])
     assert check(s, [-1, 2, 2])
 
@@ -194,11 +194,11 @@ def test_find_starts():
 def test_operator():
     # trace through center of solid sphere
     vols = [
-        SphericalVol(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi))),
-        SphericalVol(shape=(4, 4, 4)),
-        SphericalVol(shape=(1, 4, 4)),
-        SphericalVol(shape=(4, 1, 4)),
-        SphericalVol(shape=(4, 4, 1)),
+        SphericalGrid(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi))),
+        SphericalGrid(shape=(4, 4, 4)),
+        SphericalGrid(shape=(1, 4, 4)),
+        SphericalGrid(shape=(4, 1, 4)),
+        SphericalGrid(shape=(4, 4, 1)),
     ]
     u = 0.001
     xs = [

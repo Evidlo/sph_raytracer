@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from glide.science.plotting import *
 
-from sph_raytracer import SphericalVol, ConeRectGeom, Operator, ViewGeomCollection
+from sph_raytracer import SphericalGrid, ConeRectGeom, Operator, ViewGeomCollection
 
-vol = SphericalVol(shape=(50, 50, 50), size=((3, 25), (0, np.pi), (-np.pi, np.pi)))
+vol = SphericalGrid(shape=(50, 50, 50), size=((3, 25), (0, np.pi), (-np.pi, np.pi)))
 geoms = []
 for theta in np.linspace(0, 2 * np.pi, 30):
     pos = np.array((np.cos(theta), np.sin(theta), .32))

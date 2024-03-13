@@ -4,12 +4,12 @@ from collections import namedtuple
 import math
 import torch as tr
 
-__all__ = ['SphericalVol', 'ConeRectGeom', 'ConeCircGeom', 'ViewGeomCollection', 'ViewGeom']
+__all__ = ['SphericalGrid', 'ConeRectGeom', 'ConeCircGeom', 'ViewGeomCollection', 'ViewGeom']
 
 Size = namedtuple('Size', ['r', 'e', 'a'])
 Shape = namedtuple('Shape', ['r', 'e', 'a'])
 
-class SphericalVol:
+class SphericalGrid:
     r"""Spherical grid information
 
     Args:
@@ -31,8 +31,8 @@ class SphericalVol:
         size: (tuple[tuple[float]])
 
     Usage:
-        SphericalVol(((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), (50, 50, 50))
-        SphericalVol(
+        SphericalGrid(((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), (50, 50, 50))
+        SphericalGrid(
             rs=tr.linspace(3, 25, 51),
             phis=tr.linspace(0, tr.pi, 51),
             thetas=tr.linspace(-tr.pi, tr.pi, 51)
@@ -104,7 +104,7 @@ class SphericalVol:
         s, sh = self.size, self.shape
         size = f"(({s[0][0]:.1f}, {s[0][1]:.1f}), ({s[1][0]:.1f}, {s[1][1]:.1f}), ({s[2][0]:.1f}, {s[2][1]:.1f}))"
         shape = f"({sh[0]}, {sh[1]}, {sh[2]})"
-        string = f"""SphericalVol(
+        string = f"""SphericalGrid(
             size={size},
             shape={tuple(self.shape)}
         )"""
