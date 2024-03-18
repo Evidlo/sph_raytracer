@@ -137,7 +137,4 @@ def preview3d(volume, positions=20):
 
     op = Operator(g, ConeRectGeom((256, 256), pos=(4, 0, 1), fov=(30, 30)))
 
-    import ipdb
-    ipdb.set_trace()
-
     return op(rotvol)

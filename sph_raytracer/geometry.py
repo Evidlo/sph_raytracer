@@ -266,8 +266,8 @@ class ConeRectGeom(ViewGeom):
         vlim = tr.tan(tr.deg2rad(self.fov[1] / 2)) if self.shape[1] > 1 else 0
         rays = (
         self.lookdir[None, None, :]
-        + u[None, None, :] * tr.linspace(ulim, -ulim, self.shape[0])[None, :, None]
-        + v[None, None, :] * tr.linspace(vlim, -vlim, self.shape[1])[:, None, None]
+        + u[None, None, :] * tr.linspace(ulim, -ulim, self.shape[0])[:, None, None]
+        + v[None, None, :] * tr.linspace(-vlim, vlim, self.shape[1])[None, :, None]
         ).reshape((*self.shape, 3))
         rays /= tr.linalg.norm(rays, axis=-1)[..., None]
         return rays
