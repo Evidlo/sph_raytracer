@@ -637,10 +637,15 @@ class Operator:
         Returns:
             line_integrations (tensor): integrated lines of sight of shape `geom.shape`
         """
-        if self.dynamic:
-            t = tr.arange(len(density))[:, None, None, None]
-            return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
-            # NOTE: this is a flattened form of the above which uses less memory
+        # if dynamic volume density:
+        if density.ndim == 4:
+            if self.dynamic:
+                t = tr.arange(len(density))[:, None, None, None]
+                return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
+                # NOTE: this is a flattened form of the above which uses less memory
+            else:
+                r, e, a = self.regs
+                return (density[:, r, e, a] * self.lens).sum(axis=-1)
         else:
             return (density[self.regs] * self.lens).sum(axis=-1)
 

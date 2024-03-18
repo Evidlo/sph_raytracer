@@ -1,6 +1,8 @@
 # sph_raytracer
 
-A PyTorch volume raytracer in spherical coordinates.
+A 3D/4D volume raytracer in spherical coordinates implemented in PyTorch.
+
+Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
 ## Quickstart
 
@@ -15,12 +17,28 @@ This library was implemented very simply using only PyTorch array operations at 
 
     #                        points             indices   intersection_length
     #                           |                    |       |
-    mem = num_rays * (2 * nrad + 2 * nele + nazi) * (4 * 8 + 8) / 1e9
+    mem = nrays * (2 * nrad + 2 * nele + nazi) * (4 * 8 + 8) / 1e9
     
-- `num_rays` - total number of rays across all measurement positions
-- `nrad` - radial bins of volume
-- `nele` - elevation bins of volume
-- `nazi` - azimuthal bins of volume
+- `nrays` - total number of rays across all viewing geometries
+- `nrad` - number of radial bins of spherical grid
+- `nele` - number of elevation bins of spherical grid
+- `nazi` - number of azimuthal bins of spherical grid
+
+## Architecture
+
+Below is a list of modules in this package and their purpose:
+
+Forward Raytracing
+
+- `raytracer.py` - computation of voxel indices for intersecting rays, line integration
+- `geometry.py` - viewing geometry definitions, spherical grid definition
+
+Retrieval
+
+- `model.py` - parameterized models for representing a density.  used in retrieval
+- `loss.py` - some loss functions to be used in retrieval
+- `retrieval.py` - retrieval algorithms
+- `plotting.py` - functions for plotting stacks of images, retrieval losses
 
 ## Running Tests
 

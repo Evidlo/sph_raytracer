@@ -9,6 +9,8 @@ __all__ = ['SphericalGrid', 'ConeRectGeom', 'ConeCircGeom', 'ViewGeomCollection'
 Size = namedtuple('Size', ['r', 'e', 'a'])
 Shape = namedtuple('Shape', ['r', 'e', 'a'])
 
+FTYPE = tr.float64
+
 class SphericalGrid:
     r"""Spherical grid information
 
@@ -150,8 +152,8 @@ class ViewGeom:
     """Custom sensor with arbitrary ray placement"""
 
     def __init__(self, ray_starts, rays):
-        self.ray_starts = tr.asarray(ray_starts, dtype=tr.float)
-        self.rays = tr.asarray(rays, dtype=tr.float)
+        self.ray_starts = tr.asarray(ray_starts, dtype=FTYPE)
+        self.rays = tr.asarray(rays, dtype=FTYPE)
         self.rays /= tr.linalg.norm(self.rays, axis=-1)[..., None]
         self.shape = self.rays.shape[:-1]
 
@@ -233,14 +235,17 @@ class ConeRectGeom(ViewGeom):
         fov (tuple[float]): detector field of view (fov_x, fov_y)
     """
 
-    def __init__(self, shape, pos, lookdir=None, updir=(0, 0, 1), fov=(45, 45)):
-        pos = tr.asarray(pos, dtype=tr.float)
+    def __init__(self, shape, pos, lookdir=None, updir=None, fov=(45, 45)):
+        pos = tr.asarray(pos, dtype=FTYPE)
         if lookdir is None:
             lookdir = -pos
         else:
-            lookdir = tr.asarray(lookdir, dtype=tr.float)
-        updir = tr.asarray(updir, dtype=tr.float)
-        fov = tr.asarray(fov, dtype=tr.float)
+            lookdir = tr.asarray(lookdir, dtype=FTYPE)
+        if updir is None:
+            updir = tr.cross(lookdir, tr.asarray((0, 0, 1), dtype=FTYPE))
+        else:
+            updir = tr.asarray(updir, dtype=FTYPE)
+        fov = tr.asarray(fov, dtype=FTYPE)
         lookdir /= tr.linalg.norm(lookdir, axis=-1)
         updir /= tr.linalg.norm(updir, axis=-1)
 
@@ -262,7 +267,7 @@ class ConeRectGeom(ViewGeom):
         rays = (
         self.lookdir[None, None, :]
         + u[None, None, :] * tr.linspace(ulim, -ulim, self.shape[0])[None, :, None]
-        + v[None, None, :] * tr.linspace(-vlim, vlim, self.shape[1])[:, None, None]
+        + v[None, None, :] * tr.linspace(vlim, -vlim, self.shape[1])[:, None, None]
         ).reshape((*self.shape, 3))
         rays /= tr.linalg.norm(rays, axis=-1)[..., None]
         return rays

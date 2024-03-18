@@ -4,10 +4,12 @@ import torch as t
 import matplotlib.pyplot as plt
 
 from sph_raytracer import SphericalGrid, ConeRectGeom, Operator
-from sph_raytracer.plotting import image_stack
+from sph_raytracer.plotting import image_stack, preview3d
+from sph_raytracer.model import FullyDenseModel
+from sph_raytracer.retrieval import gd
 
 # define volume grid and viewing geometry vantage
-vol = SphericalGrid(shape=(50, 50, 50))
+grid = SphericalGrid(shape=(50, 50, 50))
 # define a simple circular orbit around the origin
 geoms = []
 for theta in t.linspace(0, 2*t.pi, 10):
@@ -22,29 +24,37 @@ geom = sum(geoms)
 
 # define forward operator
 # to run on CPU, use device='cpu'
-op = Operator(vol, geom, device='cuda')
+op = Operator(grid, geom, device='cuda')
 
 # test density with two nested shells
-x = t.zeros(vol.shape, device=op.device)
+x = t.zeros(grid.shape, device=op.device)
 x[:, 25:, :25] = 1
 x[:, :25, 25:] = 1
 
+meas = op(x)
 
-result = op(x)
+# ----- Retrieval -----
+# choose a model for retrieval
+m = FullyDenseModel(grid)
+retrieved = gd(op, meas, m)
 
 # ----- Plotting -----
 # %% plot
 
 plt.close('all')
 fig = plt.figure(figsize=(10, 4))
-ax1 = fig.add_subplot(1, 2, 1)
-ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+ax1 = fig.add_subplot(1, 3, 1)
+ax2 = fig.add_subplot(1, 3, 2)
+ax3 = fig.add_subplot(1, 3, 3, projection='3d')
 
-ax1.set_title('Nested Shells')
-ani1 = image_stack(result, ax1, colorbar=True)
+ax1.set_title('Truth')
+ani1 = image_stack(preview3d(x), ax1, colorbar=True)
 
-ax2.set_title('View Geometry')
-ani2 = op.plot(ax2)
+ax2.set_title('Retrieved')
+ani2 = image_stack(preview3d(retrieved[0]), ax2, colorbar=True)
+
+# ax3.set_title('View Geometry')
+# ani3 = op.plot(ax3)
 
 ani2.event_source = ani1.event_source
 f = 'static_retrieval.gif'

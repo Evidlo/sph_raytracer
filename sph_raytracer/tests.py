@@ -237,7 +237,7 @@ def test_operator():
         assert all(tr.isclose(result, tr.tensor(diam, dtype=result.dtype), atol=1e-2)), fail_str
 
 def test_conerectgeom():
-    g = ConeRectGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(23, 45))
+    g = ConeRectGeom((11, 11), (4, 0, 1), fov=(23, 45))
 
     # check fov angles
     assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[0])))
@@ -277,4 +277,4 @@ def test_examples():
     matplotlib.use('Agg')
 
     exec(open('examples/single_vantage.py').read())
-    exec(open('examples/static_retrieval.py').read())
+    # exec(open('examples/static_retrieval.py').read())

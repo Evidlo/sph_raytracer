@@ -6,6 +6,9 @@ import numpy as np
 import torch as tr
 from itertools import chain
 
+from .geometry import SphericalGrid, ConeRectGeom
+from .raytracer import Operator
+
 # def add_anim(self, other):
 #     """Merge two Animations by chaining calls to _func and _init_func
 
@@ -116,3 +119,25 @@ def image_stack(images, ax=None, polar=False, colorbar=False, **kwargs):
         plt.colorbar(artists[0][0], ax=ax_col)
 
     return animation.ArtistAnimation(ax.figure, artists, interval=200)
+
+def preview3d(volume, positions=20):
+    """Generate 3D animation of a static volume by making circular orbit around object
+
+    Args:
+        volume (tensor): 3D tensor to preview
+        positions (int): number of positions in orbit
+    """
+
+    g = SphericalGrid(shape=volume.shape)
+    # rotate volume instead of creating many views
+    rotvol = tr.empty((positions, *volume.shape))
+    offsets = tr.div(tr.arange(positions) * g.shape.a, positions, rounding_mode='floor')
+    for i, offset in enumerate(offsets):
+        rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
+
+    op = Operator(g, ConeRectGeom((256, 256), pos=(4, 0, 1), fov=(30, 30)))
+
+    import ipdb
+    ipdb.set_trace()
+
+    return op(rotvol)
