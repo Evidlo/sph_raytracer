@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+from dataclasses import dataclass
 import torch as t
 
+@dataclass(unsafe_hash=True)
 class Loss:
     """Loss function for tomographic retrieval
 
@@ -16,12 +18,18 @@ class Loss:
         gd(..., losses=[5 * MyLoss(), 3 * MyLoss2()], ...)
     """
 
-    def __init__(self, projection_mask=1, volume_mask=1, lam=1, fidelity=False, use_grad=True):
-        self.projection_mask = projection_mask
-        self.volume_mask = volume_mask
-        self.lam = lam
-        self.fidelity = fidelity
-        self.use_grad = use_grad
+    projection_mask = 1
+    volume_mask = 1
+    lam = 1
+    fidelity = False
+    use_grad = True
+
+    # def __init__(self, projection_mask=1, volume_mask=1, lam=1, fidelity=False, use_grad=True):
+    #     self.projection_mask = projection_mask
+    #     self.volume_mask = volume_mask
+    #     self.lam = lam
+    #     self.fidelity = fidelity
+    #     self.use_grad = use_grad
 
     def compute(self, f, y, d, c):
         """Compute loss
@@ -75,6 +83,8 @@ class Loss:
 class SquareLoss(Loss):
     """Standard mean L2 loss"""
 
+    fidelity = True
+
     def compute(self, f, y, d, c):
         """"""
         return t.mean(self.projection_mask * (y - f(d * self.volume_mask))**2)
@@ -82,6 +92,8 @@ class SquareLoss(Loss):
 
 class SquareRelLoss(Loss):
     """Loss as mean percent error"""
+
+    fidelity = True
 
     def compute(self, f, y, d, c):
         """"""
