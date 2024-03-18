@@ -2,11 +2,15 @@
 
 import torch as t
 import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.use('Agg')
 
 from sph_raytracer import SphericalGrid, ConeRectGeom, Operator
 from sph_raytracer.plotting import image_stack, preview3d
 from sph_raytracer.model import FullyDenseModel
 from sph_raytracer.retrieval import gd
+from sph_raytracer.loss import SquareLoss
 
 # define volume grid and viewing geometry vantage
 grid = SphericalGrid(shape=(50, 50, 50))
@@ -19,7 +23,7 @@ for theta in t.linspace(0, 2*t.pi, 10):
         fov=(45, 45)
     ))
 
-# merge geometries together
+# merge view geometries together by adding
 geom = sum(geoms)
 
 # define forward operator
@@ -36,7 +40,9 @@ meas = op(x)
 # ----- Retrieval -----
 # choose a model for retrieval
 m = FullyDenseModel(grid)
-retrieved = gd(op, meas, m)
+# choose loss functions and regularizers with weights
+loss_fns = [1 * SquareLoss()]
+retrieved = gd(op, meas, m, loss_fns=loss_fns, num_iterations=50)
 
 # ----- Plotting -----
 # %% plot
@@ -52,13 +58,14 @@ ani1 = image_stack(preview3d(x), ax1, colorbar=True)
 
 ax2.set_title('Retrieved')
 ani2 = image_stack(preview3d(retrieved[0]), ax2, colorbar=True)
-
-# ax3.set_title('View Geometry')
-# ani3 = op.plot(ax3)
-
 ani2.event_source = ani1.event_source
+
+ax3.set_title('View Geometry')
+ani3 = op.plot(ax3)
+ani3.event_source = ani1.event_source
+
 f = 'static_retrieval.gif'
 print(f"Saving to {f}")
-ani1.save(f, extra_anim=[ani2])
+ani1.save(f, extra_anim=[ani2, ani3])
 
 # plt.show()
