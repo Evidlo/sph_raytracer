@@ -42,7 +42,7 @@ def gd(f, y, model, num_iterations=100,
     coeffs = t.ones(
         model.coeffs_shape,
         requires_grad=True,
-        device='cuda',
+        device=f.device,
         dtype=t.float32
     )
 
