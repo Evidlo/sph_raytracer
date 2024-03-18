@@ -120,12 +120,13 @@ def image_stack(images, ax=None, polar=False, colorbar=False, **kwargs):
 
     return animation.ArtistAnimation(ax.figure, artists, interval=200)
 
-def preview3d(volume, positions=20):
+def preview3d(volume, positions=20, shape=(256, 256)):
     """Generate 3D animation of a static volume by making circular orbit around object
 
     Args:
         volume (tensor): 3D tensor to preview
         positions (int): number of positions in orbit
+        shape (tuple[int]): shape of output images
     """
 
     g = SphericalGrid(shape=volume.shape)
@@ -135,6 +136,6 @@ def preview3d(volume, positions=20):
     for i, offset in enumerate(offsets):
         rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
 
-    op = Operator(g, ConeRectGeom((256, 256), pos=(4, 0, 1), fov=(30, 30)))
+    op = Operator(g, ConeRectGeom(shape, pos=(4, 0, 1), fov=(30, 30)))
 
     return op(rotvol)
