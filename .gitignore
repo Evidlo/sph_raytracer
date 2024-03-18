@@ -9,8 +9,10 @@ build
 htmlcov
 
 __pycache__/
+**/*.egg-info
+**/__MACOSX
 
 example.png
 examples/*png
 examples/*gif
-examples/*json
+**/.*json
