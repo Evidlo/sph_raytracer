@@ -68,9 +68,9 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     ispec = {'dtype': itype, 'device': device}
 
     # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs, xs, rays, ftype=ftype, itype=itype, device=device)
-    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis, xs, rays, ftype=ftype, itype=itype, device=device)
-    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas, xs, rays, ftype=ftype, itype=itype, device=device)
+    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas_b, xs, rays, ftype=ftype, itype=itype, device=device)
 
     # concatenate intersection distances/points from all geometry kinds
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
@@ -546,13 +546,12 @@ def sph2cart(rea):
     return xyz
 
 
-def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
+def find_starts(vol, rays, ftype=FTYPE, device=DEVICE):
     """Compute voxel indices of ray start location at infinity
 
     Args:
-        rays (tensor): directions of rays (*num_rays, 3)
-
         vol (SphericalGrid): spherical grid
+        rays (tensor): directions of rays (*num_rays, 3)
         spec (dict): type specification for floats
         ftype (torch dtype): type specification for floats
         device (str): torch device
@@ -562,8 +561,8 @@ def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
     """
     spec = {'dtype': ftype, 'device': device}
 
-    rs, phis, thetas = (vol.rs, vol.phis, vol.thetas)
-    rays, rs, phis, thetas = map(lambda x: tr.asarray(x, **spec), (xs, rs, phis, thetas))
+    rs_b, phis_b, thetas_b = (vol.rs_b, vol.phis_b, vol.thetas_b)
+    rays, rs_b, phis_b, thetas_b = map(lambda x: tr.asarray(x, **spec), (rays, rs_b, phis_b, thetas_b))
     rays_sph = cart2sph(rays)
     # starting radius of rays is infinite
     # rays_sph[..., 0] = float('inf')
@@ -574,14 +573,14 @@ def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
     rays_a = rays_sph[..., 2].contiguous()
 
     # find region where each ray starts
-    r_reg = tr.searchsorted(rs, rays_r, right=True) - 1
-    e_reg = tr.searchsorted(phis, rays_e, right=True) - 1
-    a_reg = tr.searchsorted(thetas, rays_a, right=True) - 1
+    r_reg = tr.searchsorted(rs_b, rays_r, right=True) - 1
+    e_reg = tr.searchsorted(phis_b, rays_e, right=True) - 1
+    a_reg = tr.searchsorted(thetas_b, rays_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
-    r_reg = tr.where(rays_r == rs[-1], vol.shape[0] - 1, r_reg)
-    e_reg = tr.where(rays_e == phis[-1], vol.shape[1] - 1, e_reg)
-    a_reg = tr.where(rays_a == thetas[-1], vol.shape[2] - 1, a_reg)
+    r_reg = tr.where(rays_r == rs_b[-1], vol.shape[0] - 1, r_reg)
+    e_reg = tr.where(rays_e == phis_b[-1], vol.shape[1] - 1, e_reg)
+    a_reg = tr.where(rays_a == thetas_b[-1], vol.shape[2] - 1, a_reg)
 
     # if ray starts in an invalid region, set the region index to -1
     r_reg[r_reg == vol.shape[0]] = -1
@@ -604,7 +603,7 @@ class Operator:
     """
     def __init__(self, vol, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE,
-                 debug=False, invalid=False):
+                 debug=False, invalid=False, foo=False):
         self.vol = vol
         self.geom = geom
         if dynamic is None:
@@ -618,6 +617,15 @@ class Operator:
             ftype=ftype, itype=itype, device=device,
             invalid=invalid, debug=debug
         )
+        self.foo = foo
+        if foo:
+            self.orig_shape = self.lens.shape
+            self.regs = (
+                self.regs[0] * vol.shape.e * vol.shape.a
+                + self.regs[1] * vol.shape.a
+                + self.regs[2]
+            ).flatten()
+            self.lens = self.lens.flatten()
 
         # NOTE: we flatten regs and lens here because otherwise PyTorch uses too much memory
         # self.orig_shape = self.regs.shape[:-1]
@@ -647,7 +655,13 @@ class Operator:
                 r, e, a = self.regs
                 return (density[:, r, e, a] * self.lens).sum(axis=-1)
         else:
-            return (density[self.regs] * self.lens).sum(axis=-1)
+            if self.foo:
+                result_squeezed = density.flatten()[self.regs]
+                result_squeezed *= self.lens
+                result_squeezed = result_squeezed.view(self.orig_shape).sum(axis=-1)
+                return result_squeezed
+            else:
+                return (density[self.regs] * self.lens).sum(axis=-1)
 
     def __repr__(self):
         if self.dynamic:

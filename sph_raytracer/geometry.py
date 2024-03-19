@@ -19,17 +19,20 @@ class SphericalGrid:
             ((r_min, r_max), (e_min, e_max), (a_min, a_max))
         shape (tuple[int]): shape of spherical grid (r bins, elev bins, az bins)
         spacing (str): radial shell spacing
-        rs (ndarray, optional): manually specify radial shell locations.
-        phis (ndarray, optional): manually specify elevation cone locations
+        rs_b (ndarray, optional): manually specify radial shell boundaries.
+        phis_b (ndarray, optional): manually specify elevation cone boundaries
             in radians [0,π] (measured from +Z axis).
-        thetas (ndarray, optional): manually specify azimuth plane locations
+        thetas_b (ndarray, optional): manually specify azimuth plane boundaries
             in radians [-π,π] (measured from +X axis)
 
     Attributes:
         shape (tuple[int])
-        rs (ndarray[float])
-        phis (ndarray[float])
-        thetas (ndarray[float])
+        rs (tensor[float]): radial bin centers
+        phis (tensor[float]): elevation bin centers
+        thetas (tensor[float]): azimuth bin centers
+        r_bounds (tensor[float])
+        phi_bounds (tensor[float])
+        theta_bounds (tensor[float])
         size: (tuple[tuple[float]])
 
     Usage:
@@ -72,34 +75,41 @@ class SphericalGrid:
 
     def __init__(
             self, size=((0, 1), (0, tr.pi), (-tr.pi, tr.pi)), shape=(50, 50, 50), spacing='lin',
-            rs=None, phis=None, thetas=None):
+            rs_b=None, phis_b=None, thetas_b=None):
         size = Size(*size)
         shape = Shape(*shape)
 
         # infer shape and size if grid is manually specified
-        if (rs is not None) and (phis is not None) and (thetas is not None):
-            shape = (len(rs) - 1, len(phis) - 1, len(thetas) - 1)
-            size = ((min(rs), max(rs)), (min(phis), max(phis)), (min(thetas), max(thetas)))
+        if (rs_b is not None) and (phis_b is not None) and (thetas_b is not None):
+            shape = (len(rs_b) - 1, len(phis_b) - 1, len(thetas_b) - 1)
+            size = ((min(rs_b), max(rs_b)), (min(phis_b), max(phis_b)), (min(thetas_b), max(thetas_b)))
 
-            # enforce flaot64 dtype
-            rs, phis, thetas = [tr.asarray(x, dtype=tr.float64) for x in (rs, phis, thetas)]
+            # enforce float64 dtype
+            rs_b, phis_b, thetas_b = [tr.asarray(x, dtype=tr.float64) for x in (rs_b, phis_b, thetas_b)]
+            rs, phis, thetas = [(x[1:] + x[:1]) / 2 for x in (rs_b, phis_b, thetas_b)]
 
         # otherwise compute grid
         elif (shape is not None) and (size is not None):
             if spacing == 'log':
-                rs = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1)
+                rs_b = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1)
+                rs = tr.sqrt(rs_b[1:] * rs_b[:1])
             elif spacing == 'lin':
-                rs = tr.linspace(size.r[0], size.r[1], shape.r + 1)
+                rs_b = tr.linspace(size.r[0], size.r[1], shape.r + 1)
+                rs = (rs_b[1:] + rs_b[:1]) / 2
             else:
                 raise ValueError("Invalid value for spacing")
-            phis = tr.linspace(size.e[0], size.e[1], shape.e + 1, dtype=tr.float64)
-            thetas = tr.linspace(size.a[0], size.a[1], shape.a + 1, dtype=tr.float64)
+            phis_b = tr.linspace(size.e[0], size.e[1], shape.e + 1, dtype=tr.float64)
+            thetas_b = tr.linspace(size.a[0], size.a[1], shape.a + 1, dtype=tr.float64)
+            phis = (phis_b[1:] + phis_b[:1]) / 2
+            thetas = (thetas_b[1:] + thetas_b[:1]) / 2
 
         else:
             raise ValueError("Must specify either shape or (rs, phis, thetas)")
 
+
         self.size = size
         self.shape = shape
+        self.rs_b, self.phis_b, self.thetas_b = rs_b, phis_b, thetas_b
         self.rs, self.phis, self.thetas = rs, phis, thetas
 
     def __repr__(self):

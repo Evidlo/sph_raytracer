@@ -173,27 +173,48 @@ def test_a():
     # assert check(a_region, [1, 0])
 
 
-def test_spherical_vol():
-    vol = SphericalGrid(shape=(10, 11, 12))
-    assert (len(vol.rs), len(vol.phis), len(vol.thetas)) == (11, 12, 13)
-    vol = SphericalGrid(rs=[1, 2], phis=[1, 2, 3], thetas=[1, 2, 3, 4])
-    assert vol.shape == (1, 2, 3)
+def test_sphericalgrid():
+    grid = SphericalGrid(shape=(10, 11, 12))
+    assert (len(grid.rs_b), len(grid.phis_b), len(grid.thetas_b)) == (11, 12, 13)
+    grid = SphericalGrid(rs_b=[1, 2], phis_b=[1, 2, 3], thetas_b=[1, 2, 3, 4])
+    assert grid.shape == (1, 2, 3)
+    # check grid boundaries and centers
+    def check_bounds(grid):
+        assert len(grid.rs) == len(grid.rs_b) - 1
+        assert len(grid.phis) == len(grid.phis_b) - 1
+        assert len(grid.thetas) == len(grid.thetas_b) - 1
+        assert all(grid.rs > grid.rs_b[:1])
+        assert all(grid.phis > grid.phis_b[:1])
+        assert all(grid.thetas > grid.thetas_b[:1])
+        assert all(grid.rs < grid.rs_b[1:])
+        assert all(grid.phis < grid.phis_b[1:])
+        assert all(grid.thetas < grid.thetas_b[1:])
+
+    check_bounds(grid)
+    check_bounds(
+        SphericalGrid(
+            shape=(10, 11, 12),
+            size=((1, 10), (0, tr.pi), (0, 2*tr.pi)),
+            spacing='log',
+
+        )
+    )
 
 def test_find_starts():
-    vol = SphericalGrid(shape=(5, 5, 1))
-    s = find_starts(vol, [0, 0, 100])
+    grid = SphericalGrid(shape=(5, 5, 1))
+    s = find_starts(grid, [0, 0, 100])
     assert check(s, [-1, 0, 0])
-    s = find_starts(vol, [0, 0, -100])
+    s = find_starts(grid, [0, 0, -100])
     assert check(s, [-1, 4, 0])
 
-    vol = SphericalGrid(shape=(5, 5, 5))
-    s = find_starts(vol, [100, 0, 0])
+    grid = SphericalGrid(shape=(5, 5, 5))
+    s = find_starts(grid, [100, 0, 0])
     assert check(s, [-1, 2, 2])
 
 
 def test_operator():
     # trace through center of solid sphere
-    vols = [
+    grids = [
         SphericalGrid(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi))),
         SphericalGrid(shape=(4, 4, 4)),
         SphericalGrid(shape=(1, 4, 4)),
@@ -226,22 +247,22 @@ def test_operator():
         # ray just barely glances cone
         [-0.99998629093170166016,  0.00413372274488210678, 0.00321511807851493359],
     ]
-    for vol in vols:
+    for grid in grids:
         geom = ViewGeom(xs, rays)
-        op = Operator(vol, geom)
-        d = tr.ones(vol.shape)
+        op = Operator(grid, geom)
+        d = tr.ones(grid.shape)
         result = op(d)
-        diam = 2 * (vol.size[0][1] - vol.size[0][0])
+        diam = 2 * (grid.size[0][1] - grid.size[0][0])
         ray_success = tr.isclose(result, tr.tensor(diam, dtype=result.dtype))
-        fail_str = f"Failure for vol={vol} for ray #s {tr.where(ray_success == False)[0].tolist()}"
+        fail_str = f"Failure for grid={grid} for ray #s {tr.where(ray_success == False)[0].tolist()}"
         assert all(tr.isclose(result, tr.tensor(diam, dtype=result.dtype), atol=1e-2)), fail_str
 
 def test_conerectgeom():
     g = ConeRectGeom((11, 11), (4, 0, 1), fov=(23, 45))
 
     # check fov angles
-    assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[0])))
-    assert check(tr.dot(g.rays[0, 5], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[1])))
+    assert check(tr.dot(g.rays[5, 0], g.rays[5, -1]), tr.cos(tr.deg2rad(g.fov[1])))
+    assert check(tr.dot(g.rays[0, 5], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[0])))
     # check lookdir
     assert check(g.rays[5, 5], g.lookdir)
 
