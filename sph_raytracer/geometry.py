@@ -86,22 +86,22 @@ class SphericalGrid:
 
             # enforce float64 dtype
             rs_b, phis_b, thetas_b = [tr.asarray(x, dtype=tr.float64) for x in (rs_b, phis_b, thetas_b)]
-            rs, phis, thetas = [(x[1:] + x[:1]) / 2 for x in (rs_b, phis_b, thetas_b)]
+            rs, phis, thetas = [(x[1:] + x[:-1]) / 2 for x in (rs_b, phis_b, thetas_b)]
 
         # otherwise compute grid
         elif (shape is not None) and (size is not None):
             if spacing == 'log':
                 rs_b = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1)
-                rs = tr.sqrt(rs_b[1:] * rs_b[:1])
+                rs = tr.sqrt(rs_b[1:] * rs_b[:-1])
             elif spacing == 'lin':
                 rs_b = tr.linspace(size.r[0], size.r[1], shape.r + 1)
-                rs = (rs_b[1:] + rs_b[:1]) / 2
+                rs = (rs_b[1:] + rs_b[:-1]) / 2
             else:
                 raise ValueError("Invalid value for spacing")
             phis_b = tr.linspace(size.e[0], size.e[1], shape.e + 1, dtype=tr.float64)
             thetas_b = tr.linspace(size.a[0], size.a[1], shape.a + 1, dtype=tr.float64)
-            phis = (phis_b[1:] + phis_b[:1]) / 2
-            thetas = (thetas_b[1:] + thetas_b[:1]) / 2
+            phis = (phis_b[1:] + phis_b[:-1]) / 2
+            thetas = (thetas_b[1:] + thetas_b[:-1]) / 2
 
         else:
             raise ValueError("Must specify either shape or (rs, phis, thetas)")

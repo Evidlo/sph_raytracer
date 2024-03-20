@@ -183,9 +183,9 @@ def test_sphericalgrid():
         assert len(grid.rs) == len(grid.rs_b) - 1
         assert len(grid.phis) == len(grid.phis_b) - 1
         assert len(grid.thetas) == len(grid.thetas_b) - 1
-        assert all(grid.rs > grid.rs_b[:1])
-        assert all(grid.phis > grid.phis_b[:1])
-        assert all(grid.thetas > grid.thetas_b[:1])
+        assert all(grid.rs > grid.rs_b[:-1])
+        assert all(grid.phis > grid.phis_b[:-1])
+        assert all(grid.thetas > grid.thetas_b[:-1])
         assert all(grid.rs < grid.rs_b[1:])
         assert all(grid.phis < grid.phis_b[1:])
         assert all(grid.thetas < grid.thetas_b[1:])
