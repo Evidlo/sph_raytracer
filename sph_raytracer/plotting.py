@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
+import copy
 from matplotlib import animation
 import matplotlib.pyplot as plt
+from matplotlib.ticker import EngFormatter
 import numpy as np
 import torch as tr
-from itertools import chain
+from itertools import chain, repeat
 
-from .geometry import SphericalGrid, ConeRectGeom
+from .geometry import SphericalGrid, ConeRectGeom, ConeCircGeom, ViewGeomCollection
 from .raytracer import Operator
 
 # def add_anim(self, other):
@@ -79,19 +81,26 @@ from .raytracer import Operator
 #         return self.__add__(other)
 
 
-def image_stack(images, ax=None, polar=False, colorbar=False, **kwargs):
+def image_stack(images, geom=None, ax=None, colorbar=False, **kwargs):
     """Animate a stack of images
 
     Args:
         images (ndarray or tensor): array of shape (num_images, width, height)
+            for an animated sequence or (width, height) for a single image
+        geom (ConeRectGeom, ConeCircGeom or ViewGeomCollection): view geometry
+            for labelling FOV.  If ViewGeomCollection, all geometries should be
+            of the same type
         ax (matplotlib Axes, optional): existing Axes object to use
-        polar (bool): polar plot
         colorbar (bool): include a colorbar
         **kwargs: arguments to pass to plot
 
     Returns:
-        Animation
+        matplotlib.animation.ArtistAnimation
     """
+    polar = (
+        isinstance(geom, ConeCircGeom) or
+        (isinstance(geom, ViewGeomCollection) and isinstance(geom.geoms[0], ConeCircGeom))
+    )
     if ax is None:
         fig = plt.figure(figsize=(3, 3))
         ax = fig.add_subplot(polar=polar)
@@ -100,42 +109,92 @@ def image_stack(images, ax=None, polar=False, colorbar=False, **kwargs):
     if isinstance(images, tr.Tensor):
         images = images.detach().cpu().numpy()
 
+    deg_format = EngFormatter(unit=u"°", sep="")
+
     if polar:
-        theta_lin = np.linspace(0, 2*np.pi, 100)
-        # r_lin = np.logspace(np.log10(3), np.log10(25), 100)
-        r_lin = np.linspace(3, 25, 100)
-        theta, r = np.meshgrid(theta_lin, r_lin)
-        imshow = lambda img, **k: ax.pcolormesh(theta, r, img, **k)
+        def imshow(img, geom, **kwargs):
+            # r_lin = np.logspace(np.log10(3), np.log10(25), 100)
+            r_lin = np.linspace(0, geom.fov/2, geom.shape[0])
+            theta_lin = np.linspace(0, 2*np.pi, geom.shape[1])
+            theta, r = np.meshgrid(theta_lin, r_lin)
+            ax.yaxis.set_major_formatter(deg_format)
+            return ax.pcolormesh(theta, r, img, **kwargs)
     else:
-        imshow = ax.imshow
+        def imshow(img, geom, **kwargs):
+            extent = (-geom.fov[1]/2, geom.fov[1]/2, -geom.fov[0]/2, geom.fov[0]/2)
+            ax.xaxis.set_major_formatter(deg_format)
+            ax.yaxis.set_major_formatter(deg_format)
+            return ax.imshow(img, extent=extent, **kwargs)
 
     vmin, vmax = images.min(), images.max()
-    # artists = [[ax.imshow(im, animated=True)] for im in images]
-    artists = [[imshow(im, animated=True, vmin=vmin, vmax=vmax, **kwargs)] for im in images]
+    if images.ndim == 3:
+        # use same ViewGeom for all images if a ViewGeomCollection not provided
+        geom = geom if isinstance(geom, ViewGeomCollection) else repeat(geom)
+        artists = [[imshow(im, g, animated=True, vmin=vmin, vmax=vmax, **kwargs)] for im, g in zip(images, geom)]
+        result = animation.ArtistAnimation(ax.figure, artists, interval=200)
+    elif images.ndim == 2:
+        artists = [imshow(images, geom, **kwargs)]
+        result = artists[0]
+    else:
+        raise ValueError("Invalid images shape")
 
     if colorbar:
         ax_col = ax.twinx()
         ax_col.tick_params(which="both", right=False, labelright=False)
         plt.colorbar(artists[0][0], ax=ax_col)
 
-    return animation.ArtistAnimation(ax.figure, artists, interval=200)
+    return result
 
-def preview3d(volume, positions=20, shape=(256, 256)):
+
+def color_negative(x):
+    """Convert grayscale multidimensional tensor with negative values to RGB version
+
+    Args:
+        x (tensor): multidimensional grayscale array of shape (A, B, ..., Z)
+
+    Returns:
+        colored (tensor): multidimensional array of shape (A, B, ..., Z, 3)
+    """
+    neg = tr.clone(x)
+    pos = tr.clone(x)
+    pos[pos < 0] = 0
+    neg[neg >= 0] = 0
+    neg *= -1
+
+    return tr.stack((pos, neg, tr.zeros(pos.shape)), axis=-1)
+
+
+def preview3d(volume, positions=20, shape=(256, 256), device='cpu'):
     """Generate 3D animation of a static volume by making circular orbit around object
 
     Args:
-        volume (tensor): 3D tensor to preview
+        volume (tensor): volume to preview of shape (width, height, depth) or
+            (width, height, depth, num_channels) for multi-channel measurement
         positions (int): number of positions in orbit
         shape (tuple[int]): shape of output images
     """
 
-    g = SphericalGrid(shape=volume.shape)
+    if volume.ndim == 4:
+        g = SphericalGrid(shape=volume.shape[:-1])
+    else:
+        g = SphericalGrid(shape=volume.shape)
+
     # rotate volume instead of creating many views
-    rotvol = tr.empty((positions, *volume.shape))
     offsets = tr.div(tr.arange(positions) * g.shape.a, positions, rounding_mode='floor')
-    for i, offset in enumerate(offsets):
-        rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
 
     op = Operator(g, ConeRectGeom(shape, pos=(4, 0, 1), fov=(30, 30)))
 
-    return op(rotvol)
+    # if multiple channels, process each separately
+    if volume.ndim == 4:
+        rotvol = tr.empty((positions, *g.shape, 3))
+        for i, offset in enumerate(offsets):
+            rotvol[i] = tr.roll(volume, (0, 0, int(offset), 0), dims=(0, 1, 2, 3))
+        results = []
+        for chan in tr.moveaxis(rotvol, -1, 0):
+            results.append(op(chan))
+        return np.stack(results, axis=-1)
+    else:
+        rotvol = tr.empty((positions, *g.shape))
+        for i, offset in enumerate(offsets):
+            rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
+        return op(rotvol)
