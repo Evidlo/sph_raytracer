@@ -161,40 +161,47 @@ def color_negative(x):
     neg[neg >= 0] = 0
     neg *= -1
 
-    return tr.stack((pos, neg, tr.zeros(pos.shape)), axis=-1)
+    return tr.stack((pos, neg, tr.zeros(pos.shape, device=x.device)), axis=-1)
 
 
-def preview3d(volume, positions=20, shape=(256, 256), device='cpu'):
+def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
     """Generate 3D animation of a static volume by making circular orbit around object
 
     Args:
         volume (tensor): volume to preview of shape (width, height, depth) or
             (width, height, depth, num_channels) for multi-channel measurement
+        grid (SphericalGrid): grid where volume is defined
         positions (int): number of positions in orbit
         shape (tuple[int]): shape of output images
     """
 
-    if volume.ndim == 4:
-        g = SphericalGrid(shape=volume.shape[:-1])
-    else:
-        g = SphericalGrid(shape=volume.shape)
+    if not volume.ndim in (3, 4):
+        raise ValueError(f"Invalid shape for volume: {tuple(volume.shape)}")
+
+    # if volume.ndim == 4:
+    #     g = SphericalGrid(shape=volume.shape[:-1])
+    # elif volume.ndim == 3:
+    #     g = SphericalGrid(shape=volume.shape)
+    # else:
+    #     raise ValueError(f"Invalid shape for volume: {tuple(volume.shape)}")
 
     # rotate volume instead of creating many views
-    offsets = tr.div(tr.arange(positions) * g.shape.a, positions, rounding_mode='floor')
+    offsets = tr.div(tr.arange(positions) * grid.shape.a, positions, rounding_mode='floor')
 
-    op = Operator(g, ConeRectGeom(shape, pos=(4, 0, 1), fov=(30, 30)))
+    geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], 0, 1), fov=(30, 30))
+    op = Operator(grid, geom)
 
     # if multiple channels, process each separately
     if volume.ndim == 4:
-        rotvol = tr.empty((positions, *g.shape, 3))
+        rotvol = tr.empty((positions, *grid.shape, 3))
         for i, offset in enumerate(offsets):
             rotvol[i] = tr.roll(volume, (0, 0, int(offset), 0), dims=(0, 1, 2, 3))
         results = []
         for chan in tr.moveaxis(rotvol, -1, 0):
             results.append(op(chan))
-        return np.stack(results, axis=-1)
+        return tr.stack(results, axis=-1)
     else:
-        rotvol = tr.empty((positions, *g.shape))
+        rotvol = tr.empty((positions, *grid.shape))
         for i, offset in enumerate(offsets):
             rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
         return op(rotvol)

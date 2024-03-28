@@ -74,15 +74,15 @@ class SphericalGrid:
     """
 
     def __init__(
-            self, size=((0, 1), (0, tr.pi), (-tr.pi, tr.pi)), shape=(50, 50, 50), spacing='lin',
+            self, size_r=(0, 1), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi), shape=(50, 50, 50), spacing='lin',
             rs_b=None, phis_b=None, thetas_b=None):
-        size = Size(*size)
+        size = Size(size_r, size_e, size_a)
         shape = Shape(*shape)
 
         # infer shape and size if grid is manually specified
         if (rs_b is not None) and (phis_b is not None) and (thetas_b is not None):
-            shape = (len(rs_b) - 1, len(phis_b) - 1, len(thetas_b) - 1)
-            size = ((min(rs_b), max(rs_b)), (min(phis_b), max(phis_b)), (min(thetas_b), max(thetas_b)))
+            shape = Shape(len(rs_b) - 1, len(phis_b) - 1, len(thetas_b) - 1)
+            size = Size((min(rs_b), max(rs_b)), (min(phis_b), max(phis_b)), (min(thetas_b), max(thetas_b)))
 
             # enforce float64 dtype
             rs_b, phis_b, thetas_b = [tr.asarray(x, dtype=tr.float64) for x in (rs_b, phis_b, thetas_b)]
@@ -324,6 +324,7 @@ class ConeCircGeom(ConeRectGeom):
     """
 
     def __init__(self, *args, fov=45, **kwargs):
+
         super().__init__(*args, fov=fov, **kwargs)
 
     @property

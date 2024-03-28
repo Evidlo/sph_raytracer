@@ -194,7 +194,7 @@ def test_sphericalgrid():
     check_bounds(
         SphericalGrid(
             shape=(10, 11, 12),
-            size=((1, 10), (0, tr.pi), (0, 2*tr.pi)),
+            size_r=(1, 10), size_e=(0, tr.pi), size_a=(0, 2*tr.pi),
             spacing='log',
 
         )
@@ -215,7 +215,7 @@ def test_find_starts():
 def test_operator():
     # trace through center of solid sphere
     grids = [
-        SphericalGrid(shape=(50, 50, 50), size=((3, 25), (0, tr.pi), (-tr.pi, tr.pi))),
+        SphericalGrid(shape=(50, 50, 50), size_r=(3, 25), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi)),
         SphericalGrid(shape=(4, 4, 4)),
         SphericalGrid(shape=(1, 4, 4)),
         SphericalGrid(shape=(4, 1, 4)),
@@ -256,6 +256,11 @@ def test_operator():
         ray_success = tr.isclose(result, tr.tensor(diam, dtype=result.dtype))
         fail_str = f"Failure for grid={grid} for ray #s {tr.where(ray_success == False)[0].tolist()}"
         assert all(tr.isclose(result, tr.tensor(diam, dtype=result.dtype), atol=1e-2)), fail_str
+
+    # trace ray through center of hollow sphere
+    geom = ViewGeom([-100, 0, 0], [1, 0, 0])
+    grid = SphericalGrid(shape=(25, 25, 25), size_r=(5, 10))
+    op = Operator(grid, geom)
 
 def test_conerectgeom():
     g = ConeRectGeom((11, 11), (4, 0, 1), fov=(23, 45))

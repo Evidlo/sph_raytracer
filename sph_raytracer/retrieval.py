@@ -43,7 +43,7 @@ def gd(f, y, model, num_iterations=100,
         model.coeffs_shape,
         requires_grad=True,
         device=f.device,
-        dtype=t.float32
+        dtype=t.float64
     )
 
     best_loss = float('inf')
