@@ -546,12 +546,12 @@ def sph2cart(rea):
     return xyz
 
 
-def find_starts(vol, rays, ftype=FTYPE, device=DEVICE):
-    """Compute voxel indices of ray start location at infinity
+def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
+    """Compute voxel indices of ray start locations
 
     Args:
         vol (SphericalGrid): spherical grid
-        rays (tensor): directions of rays (*num_rays, 3)
+        xs (tensor): starting points of rays (num_rays, 3)
         spec (dict): type specification for floats
         ftype (torch dtype): type specification for floats
         device (str): torch device
@@ -562,25 +562,23 @@ def find_starts(vol, rays, ftype=FTYPE, device=DEVICE):
     spec = {'dtype': ftype, 'device': device}
 
     rs_b, phis_b, thetas_b = (vol.rs_b, vol.phis_b, vol.thetas_b)
-    rays, rs_b, phis_b, thetas_b = map(lambda x: tr.asarray(x, **spec), (rays, rs_b, phis_b, thetas_b))
-    rays_sph = cart2sph(rays)
-    # starting radius of rays is infinite
-    # rays_sph[..., 0] = float('inf')
+    xs, rs_b, phis_b, thetas_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, phis_b, thetas_b))
+    xs_sph = cart2sph(xs)
 
     # make contiguous to avoid pytorch searchsorted warnings
-    rays_r = rays_sph[..., 0].contiguous()
-    rays_e = rays_sph[..., 1].contiguous()
-    rays_a = rays_sph[..., 2].contiguous()
+    xs_r = xs_sph[..., 0].contiguous()
+    xs_e = xs_sph[..., 1].contiguous()
+    xs_a = xs_sph[..., 2].contiguous()
 
     # find region where each ray starts
-    r_reg = tr.searchsorted(rs_b, rays_r, right=True) - 1
-    e_reg = tr.searchsorted(phis_b, rays_e, right=True) - 1
-    a_reg = tr.searchsorted(thetas_b, rays_a, right=True) - 1
+    r_reg = tr.searchsorted(rs_b, xs_r, right=True) - 1
+    e_reg = tr.searchsorted(phis_b, xs_e, right=True) - 1
+    a_reg = tr.searchsorted(thetas_b, xs_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
-    r_reg = tr.where(rays_r == rs_b[-1], vol.shape[0] - 1, r_reg)
-    e_reg = tr.where(rays_e == phis_b[-1], vol.shape[1] - 1, e_reg)
-    a_reg = tr.where(rays_a == thetas_b[-1], vol.shape[2] - 1, a_reg)
+    r_reg = tr.where(xs_r == rs_b[-1], vol.shape[0] - 1, r_reg)
+    e_reg = tr.where(xs_e == phis_b[-1], vol.shape[1] - 1, e_reg)
+    a_reg = tr.where(xs_a == thetas_b[-1], vol.shape[2] - 1, a_reg)
 
     # if ray starts in an invalid region, set the region index to -1
     r_reg[r_reg == vol.shape[0]] = -1

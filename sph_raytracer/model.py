@@ -53,7 +53,7 @@ class CubesModel(Model):
     """Test model with two boxes in spherical coordinates"""
     def __init__(self, grid: SphericalGrid):
         self.grid = grid
-        self.volume = t.zeros(g.shape)
+        self.volume = t.zeros(grid.shape)
         r0, r1 = grid.shape.r * t.tensor((.333, .666))
         e00, e01 = grid.shape.e * t.tensor((.2, .3))
         e10, e11 = grid.shape.e * t.tensor((.7, .9))
@@ -94,7 +94,7 @@ class AxisAlignmentModel(Model):
     """
     def __init__(self, grid: SphericalGrid):
         self.grid = grid
-        self.volume = t.zeros(g.shape)
+        self.volume = t.zeros(grid.shape)
 
         # X axis
         self.volume[:grid.shape.r//3, grid.shape.e//2, 0] = 1

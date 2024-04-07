@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
 from .plotting import image_stack, preview3d, color_negative
-from .geometry import ConeCircGeom, ConeRectGeom
+from .geometry import ConeCircGeom, ConeRectGeom, SphericalGrid
 import torch as tr
 import matplotlib
 
 def test_preview3d():
     vol = tr.rand((50, 50, 50))
-    result = preview3d(vol)
+    grid = SphericalGrid(shape=vol.shape)
+    result = preview3d(vol, grid)
     assert result.shape == (20, 256, 256), "Incorrect preview3d shape"
-    result = preview3d(color_negative(vol))
+    result = preview3d(color_negative(vol), grid)
     assert result.shape == (20, 256, 256, 3), "Incorrect preview3d shape"
 
 def test_image_stack():
