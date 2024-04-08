@@ -19,7 +19,10 @@ def gd(f, y, model, num_iterations=100,
        loss_fns=[SquareLoss()], lr=1e-1, optimizer=t.optim.Adam,
        optim_args={}, progress_bar=True
        ):
-    """pytorch gradient descent
+    """Gradient descent to minimize loss function
+
+    Minimizes sum of weighted loss functions with respect to model coefficients:
+    e.g. `lam1 * loss_fn1(f, y, d, coeffs) + lam2 * loss_fn2(f, y, d, coeffs) + ...`
 
     Args:
         f (Forward): forward operator with pytorch autograd support
@@ -33,7 +36,9 @@ def gd(f, y, model, num_iterations=100,
         optim_args (dict): optional optimizer arguments
 
     Returns:
-        model: instance of model with reconstructed coeffs
+        coeffs (tensor): retrieved coeffs with smallest loss.  shape `model.coeffs_shape`
+        y (tensor): retrieved coeffs passed through model and forward operator: f(model(coeffs))
+        losses (dict): loss for each loss function at every iteration
     """
 
     if y is not None:

@@ -121,7 +121,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, **kwargs):
             return ax.pcolormesh(theta, r, img, **kwargs)
     else:
         def imshow(img, geom, **kwargs):
-            extent = (-geom.fov[1]/2, geom.fov[1]/2, -geom.fov[0]/2, geom.fov[0]/2)
+            extent = (-geom.fov[1]/2, geom.fov[1]/2, -geom.fov[0]/2, geom.fov[0]/2) if geom is not None else None
             ax.xaxis.set_major_formatter(deg_format)
             ax.yaxis.set_major_formatter(deg_format)
             return ax.imshow(img, extent=extent, **kwargs)
@@ -173,6 +173,13 @@ def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
         grid (SphericalGrid): grid where volume is defined
         positions (int): number of positions in orbit
         shape (tuple[int]): shape of output images
+
+    Returns:
+        tensor: stack of images containing rotating preview of volume with shape
+            (positions, *shape) if volume is single channel, or
+            (positions, *shape, num_channels) if multiple channels
+
+    Usage
     """
 
     if not volume.ndim in (3, 4):
