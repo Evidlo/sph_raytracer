@@ -196,7 +196,8 @@ def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
     offsets = tr.div(tr.arange(positions) * grid.shape.a, positions, rounding_mode='floor')
 
     geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], 0, 1), fov=(30, 30))
-    op = Operator(grid, geom)
+    # FIXME: flatten this too?
+    op = Operator(grid, geom, _flatten=False)
 
     # if multiple channels, process each separately
     if volume.ndim == 4:

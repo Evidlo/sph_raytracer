@@ -602,7 +602,7 @@ class Operator:
     """
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE,
-                 debug=False, invalid=False, foo=False):
+                 debug=False, invalid=False, _flatten=True):
         self.grid = grid
         self.geom = geom
         if dynamic is None:
@@ -616,8 +616,8 @@ class Operator:
             ftype=ftype, itype=itype, device=device,
             invalid=invalid, debug=debug
         )
-        self.foo = foo
-        if foo:
+        self._flatten = _flatten
+        if _flatten:
             self.orig_shape = self.lens.shape
             self.regs = (
                 self.regs[0] * grid.shape.e * grid.shape.a
@@ -654,7 +654,7 @@ class Operator:
                 r, e, a = self.regs
                 return (density[:, r, e, a] * self.lens).sum(axis=-1)
         else:
-            if self.foo:
+            if self._flatten:
                 result_squeezed = density.flatten()[self.regs]
                 result_squeezed *= self.lens
                 result_squeezed = result_squeezed.view(self.orig_shape).sum(axis=-1)

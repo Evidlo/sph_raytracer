@@ -27,7 +27,7 @@ geom = sum(geoms)
 
 # define forward operator
 # to run on CPU, use device='cpu'
-op = Operator(grid, geom, device='cuda')
+op = Operator(grid, geom, device='cuda', _flatten=False)
 
 # test density with two nested shells
 x = t.zeros(grid.shape, device=op.device)
