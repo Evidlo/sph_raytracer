@@ -16,8 +16,14 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
     pip install -e .
     python examples/single_vantage.py
 
-![example output](example.png)
+<img src="example.png" width=300/>
 
+    python examples/static_retrieval.py
+
+<p>
+<img src="static_retrieval1.gif"/>
+<img src="static_retrieval2.gif"/>
+</p>
 ## Memory Usage
 
 This library was implemented very simply using only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB of this library can be approximated with the following expression

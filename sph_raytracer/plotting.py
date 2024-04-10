@@ -81,7 +81,7 @@ from .raytracer import Operator
 #         return self.__add__(other)
 
 
-def image_stack(images, geom=None, ax=None, colorbar=False, **kwargs):
+def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs):
     """Animate a stack of images
 
     Args:
@@ -92,15 +92,17 @@ def image_stack(images, geom=None, ax=None, colorbar=False, **kwargs):
             of the same type
         ax (matplotlib Axes, optional): existing Axes object to use
         colorbar (bool): include a colorbar
+        polar (bool): override polar plot detection
         **kwargs: arguments to pass to plot
 
     Returns:
         matplotlib.animation.ArtistAnimation
     """
-    polar = (
-        isinstance(geom, ConeCircGeom) or
-        (isinstance(geom, ViewGeomCollection) and isinstance(geom.geoms[0], ConeCircGeom))
-    )
+    if polar is None:
+        polar = (
+            isinstance(geom, ConeCircGeom) or
+            (isinstance(geom, ViewGeomCollection) and isinstance(geom.geoms[0], ConeCircGeom))
+        )
     if ax is None:
         fig = plt.figure(figsize=(3, 3))
         ax = fig.add_subplot(polar=polar)
@@ -114,16 +116,25 @@ def image_stack(images, geom=None, ax=None, colorbar=False, **kwargs):
     if polar:
         def imshow(img, geom, **kwargs):
             # r_lin = np.logspace(np.log10(3), np.log10(25), 100)
-            r_lin = np.linspace(0, geom.fov/2, geom.shape[0])
-            theta_lin = np.linspace(0, 2*np.pi, geom.shape[1])
+            if geom is not None:
+                ax.yaxis.set_major_formatter(deg_format)
+                fov = geom.fov
+            else:
+                fov = 1
+            r_lin = np.linspace(0, fov/2, images.shape[-2])
+            theta_lin = np.linspace(0, 2*np.pi, images.shape[-1])
+            # realign polar plot up direction
+            ax.set_theta_zero_location('N')
             theta, r = np.meshgrid(theta_lin, r_lin)
-            ax.yaxis.set_major_formatter(deg_format)
             return ax.pcolormesh(theta, r, img, **kwargs)
     else:
         def imshow(img, geom, **kwargs):
-            extent = (-geom.fov[1]/2, geom.fov[1]/2, -geom.fov[0]/2, geom.fov[0]/2) if geom is not None else None
-            ax.xaxis.set_major_formatter(deg_format)
-            ax.yaxis.set_major_formatter(deg_format)
+            if geom is not None:
+                extent = (-geom.fov[1]/2, geom.fov[1]/2, -geom.fov[0]/2, geom.fov[0]/2)
+                ax.xaxis.set_major_formatter(deg_format)
+                ax.yaxis.set_major_formatter(deg_format)
+            else:
+                extent = None
             return ax.imshow(img, extent=extent, **kwargs)
 
     vmin, vmax = images.min(), images.max()
@@ -139,9 +150,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, **kwargs):
         raise ValueError("Invalid images shape")
 
     if colorbar:
-        ax_col = ax.twinx()
-        ax_col.tick_params(which="both", right=False, labelright=False)
-        plt.colorbar(artists[0][0], ax=ax_col)
+        ax.figure.colorbar(artists[0][0], pad=.1)
 
     return result
 
