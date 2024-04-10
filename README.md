@@ -16,26 +16,32 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
     pip install -e .
     python examples/single_vantage.py
 
-<img src="example.png" width=300/>
+<img src="example.png" height=250/>
 
     python examples/static_retrieval.py
 
 <p>
-<img src="static_retrieval1.gif"/>
-<img src="static_retrieval2.gif"/>
+<img src="static_retrieval1.gif" height=250/>
+<img src="static_retrieval2.gif" height=250/>
 </p>
+
 ## Memory Usage
 
-This library was implemented very simply using only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB of this library can be approximated with the following expression
+This library was implemented very simply using only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB of this library can be approximated with `examples/memory_usage.py`
 
-    #                        points             indices   intersection_length
-    #                           |                    |       |
-    mem = nrays * (2 * nrad + 2 * nele + nazi) * (4 * 8 + 8) / 1e9
-    
-- `nrays` - total number of rays across all viewing geometries
-- `nrad` - number of radial bins of spherical grid
-- `nele` - number of elevation bins of spherical grid
-- `nazi` - number of azimuthal bins of spherical grid
+``` python
+>>> %run ~/examples/memory_usage.py
+
+--- Parameters ---
+
+(50, 50, 50) volume
+50 observations, 1 channels, (50, 100) sensor
+
+--- Memory Usage ---
+
+Ray coordinates memory: 4.25 GB
+Density memory: 0.05 GB
+```
 
 ## Architecture
 
