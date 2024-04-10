@@ -41,6 +41,9 @@ def gd(f, y, model, num_iterations=100,
         losses (dict): loss for each loss function at every iteration
     """
 
+    if f.grid != model.grid:
+        raise ValueError("f and model must have same grid")
+
     if y is not None:
         y.requires_grad_()
 
