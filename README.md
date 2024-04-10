@@ -4,9 +4,16 @@ A 3D/4D volume raytracer in spherical coordinates implemented in PyTorch.
 
 Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
+## Features
+
+- 3D spherical raytracing with optional support for evolving volume (4D)
+- implemented purely in PyTorch for easy integration with PyTorch's optimization and machine learning capabilities
+- support for custom detector shapes/sizes
+- optional retrieval framework for easily defining loss functions and parametric models
+
 ## Quickstart
 
-    pip install sph_raytracer
+    pip install -e .
     python examples/single_vantage.py
 
 ![example output](example.png)

@@ -43,12 +43,12 @@ def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False
     return x.moveaxis(0, dim)
 
 
-def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invalid=False, debug=False):
+def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invalid=False, debug=False):
     """Sort points by distance.  Then filter out invalid intersections (nan t values)
     and points which lie outside radius `max_r` (inplace)
 
     Args:
-        vol (SphericalGrid): spherical grid
+        grid (SphericalGrid): spherical grid
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
         ftype (torch dtype): type specification for floats
@@ -61,16 +61,17 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
         lens (tensor[float]): intersection length of each voxel with ray's path
             (*rays.shape, max_int_voxels)
 
-    where `max_int_voxels` is `2*vol.shape[0] + 2*vol.shape[1] + vol.shape[2]`
+
+    where `max_int_voxels` is `2*grid.shape[0] + 2*grid.shape[1] + grid.shape[2]`
 
     """
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
 
     # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(vol.rs_b, xs, rays, ftype=ftype, itype=itype, device=device)
-    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(vol.phis_b, xs, rays, ftype=ftype, itype=itype, device=device)
-    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(vol.thetas_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.phis_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.thetas_b, xs, rays, ftype=ftype, itype=itype, device=device)
 
     # concatenate intersection distances/points from all geometry kinds
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
@@ -104,8 +105,8 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
     forward_fill_jit(
         all_regs_s,
         # tr.full_like(all_regs_s, -2)[..., 0, :],
-        # find_starts(vol, rays),
-        find_starts(vol, xs, ftype=ftype, device=device),
+        # find_starts(grid, rays),
+        find_starts(grid, xs, ftype=ftype, device=device),
         dim=-2, fill_what=-2, inplace=True
     )
 
@@ -121,12 +122,12 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
         all_lens_s[invalid] = 0
 
         # set invalid regions to 0 and zero associated segment length
-        all_lens_s[all_regs_s[..., 0] > vol.shape[0] - 1] = 0
-        all_lens_s[all_regs_s[..., 1] > vol.shape[1] - 1] = 0
-        all_lens_s[all_regs_s[..., 2] > vol.shape[2] - 1] = 0
-        # all_regs_s[all_regs_s[..., 0] > vol.shape[0] - 1] = 0
-        # all_regs_s[all_regs_s[..., 1] > vol.shape[1] - 1] = 0
-        # all_regs_s[all_regs_s[..., 2] > vol.shape[2] - 1] = 0
+        all_lens_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
+        all_lens_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
+        all_lens_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
+        # all_regs_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
+        # all_regs_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
+        # all_regs_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
 
         all_lens_s[all_regs_s[..., 0] < 0] = 0
         all_lens_s[all_regs_s[..., 1] < 0] = 0
@@ -165,7 +166,7 @@ def trace_indices(vol, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invali
         ns = _all_ns_s[which]
         kinds = _all_kinds_s[which]
         kmap = {0:'r', 1:'e', 2:'a'}
-        print(find_starts(vol, xs))
+        print(find_starts(grid, xs))
         for k, r, l, t_, ind, n in zip(kinds, regs, lens, ts, inds, ns):
             print(
                 f'{kmap[int(k)]:<2}',
@@ -546,11 +547,11 @@ def sph2cart(rea):
     return xyz
 
 
-def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
+def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     """Compute voxel indices of ray start locations
 
     Args:
-        vol (SphericalGrid): spherical grid
+        grid (SphericalGrid): spherical grid
         xs (tensor): starting points of rays (num_rays, 3)
         spec (dict): type specification for floats
         ftype (torch dtype): type specification for floats
@@ -561,7 +562,7 @@ def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
     """
     spec = {'dtype': ftype, 'device': device}
 
-    rs_b, phis_b, thetas_b = (vol.rs_b, vol.phis_b, vol.thetas_b)
+    rs_b, phis_b, thetas_b = (grid.rs_b, grid.phis_b, grid.thetas_b)
     xs, rs_b, phis_b, thetas_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, phis_b, thetas_b))
     xs_sph = cart2sph(xs)
 
@@ -576,14 +577,14 @@ def find_starts(vol, xs, ftype=FTYPE, device=DEVICE):
     a_reg = tr.searchsorted(thetas_b, xs_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
-    r_reg = tr.where(xs_r == rs_b[-1], vol.shape[0] - 1, r_reg)
-    e_reg = tr.where(xs_e == phis_b[-1], vol.shape[1] - 1, e_reg)
-    a_reg = tr.where(xs_a == thetas_b[-1], vol.shape[2] - 1, a_reg)
+    r_reg = tr.where(xs_r == rs_b[-1], grid.shape[0] - 1, r_reg)
+    e_reg = tr.where(xs_e == phis_b[-1], grid.shape[1] - 1, e_reg)
+    a_reg = tr.where(xs_a == thetas_b[-1], grid.shape[2] - 1, a_reg)
 
     # if ray starts in an invalid region, set the region index to -1
-    r_reg[r_reg == vol.shape[0]] = -1
-    e_reg[e_reg == vol.shape[1]] = -1
-    a_reg[a_reg == vol.shape[2]] = -1
+    r_reg[r_reg == grid.shape[0]] = -1
+    e_reg[e_reg == grid.shape[1]] = -1
+    a_reg[a_reg == grid.shape[2]] = -1
 
     return tr.stack((r_reg, e_reg, a_reg), axis=-1)
 
@@ -592,17 +593,17 @@ class Operator:
     """Raytracing operator
 
     Args:
-        vol (SphericalGrid): spherical grid extent/resolution information
+        grid (SphericalGrid): spherical grid extent/resolution information
         geom (ViewGeom): measurement locations and rays
         ftype (torch dtype): type specification for floats
         itype (torch dtype): type specification for ints
         device (str): torch device
         dynamic (bool): force whether input density is evolving (4D) or static (3D)
     """
-    def __init__(self, vol, geom, dynamic=False,
+    def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE,
                  debug=False, invalid=False, foo=False):
-        self.vol = vol
+        self.grid = grid
         self.geom = geom
         if dynamic is None:
             dynamic = True if isinstance(geom, ViewGeomCollection) else False
@@ -611,7 +612,7 @@ class Operator:
         self.itype = itype
         self.device = device
         self.regs, self.lens = trace_indices(
-            vol, geom.ray_starts, geom.rays,
+            grid, geom.ray_starts, geom.rays,
             ftype=ftype, itype=itype, device=device,
             invalid=invalid, debug=debug
         )
@@ -619,8 +620,8 @@ class Operator:
         if foo:
             self.orig_shape = self.lens.shape
             self.regs = (
-                self.regs[0] * vol.shape.e * vol.shape.a
-                + self.regs[1] * vol.shape.a
+                self.regs[0] * grid.shape.e * grid.shape.a
+                + self.regs[1] * grid.shape.a
                 + self.regs[2]
             ).flatten()
             self.lens = self.lens.flatten()
@@ -637,7 +638,7 @@ class Operator:
         inner-product with intersection length
 
         Args:
-            density (tensor): 3D tensor of shape `vol.shape` if dynamic=False.  4D tensor
+            density (tensor): 3D tensor of shape `grid.shape` if dynamic=False.  4D tensor
                 with first dimension equal to length of geom.shape[0] if dynamic=True
 
         Returns:
@@ -663,9 +664,9 @@ class Operator:
 
     def __repr__(self):
         if self.dynamic:
-            return f"Operator({(self.geom.shape[0], *self.vol.shape)} → {self.geom.shape})"
+            return f"Operator({(self.geom.shape[0], *self.grid.shape)} → {self.geom.shape})"
         else:
-            return f"Operator({self.vol.shape} → {self.geom.shape})"
+            return f"Operator({self.grid.shape} → {self.geom.shape})"
 
 
     def plot(self, ax=None):
@@ -683,7 +684,7 @@ class Operator:
             fig = plt.figure(figsize=(3, 3))
             ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
-        self.vol.plot(ax)
+        self.grid.plot(ax)
 
         wireframe = self.geom._wireframe
 
