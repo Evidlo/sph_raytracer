@@ -18,26 +18,28 @@ from sph_raytracer.loss import SquareLoss, NegRegularizer
 grid = SphericalGrid(shape=(50, 50, 50))
 
 # generate a simple static test volume with two nested shells
-x = t.zeros(grid.shape, device=op.device)
+# to run on CPU, use device='cpu'
+x = t.zeros(grid.shape, device='cuda')
 x[:, 25:, :25] = 1
 x[:, :25, 25:] = 1
 
 # define a simple circular orbit around the origin
 geoms = []
 for theta in t.linspace(0, 2*t.pi, 50):
-    # use a circular detector
-    geoms.append(ConeCircGeom(
-        shape=(100, 50),
-        pos=(5 * t.cos(theta), 5 * t.sin(theta), 1),
-        fov=45
-    ))
+    geoms.append(
+        # use a circular shaped detector
+        ConeCircGeom(
+            shape=(100, 50),
+            pos=(5 * t.cos(theta), 5 * t.sin(theta), 1),
+            fov=45
+        )
+    )
 
 # merge view geometries together by adding
 geoms = sum(geoms)
 
 # define forward operator
-# to run on CPU, use device='cpu'
-op = Operator(grid, geoms, device='cuda')
+op = Operator(grid, geoms, device=x.device)
 
 # generate some measurements to retrieve from.  No measurement noise in this case
 meas = op(x)
