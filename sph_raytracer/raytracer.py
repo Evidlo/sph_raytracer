@@ -125,16 +125,16 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         all_lens_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
         all_lens_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
         all_lens_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
-        all_regs_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
-        all_regs_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
-        all_regs_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
+        # all_regs_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
+        # all_regs_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
+        # all_regs_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
 
         all_lens_s[all_regs_s[..., 0] < 0] = 0
         all_lens_s[all_regs_s[..., 1] < 0] = 0
         all_lens_s[all_regs_s[..., 2] < 0] = 0
-        all_regs_s[all_regs_s[..., 0] < 0] = 0
-        all_regs_s[all_regs_s[..., 1] < 0] = 0
-        all_regs_s[all_regs_s[..., 2] < 0] = 0
+        # all_regs_s[all_regs_s[..., 0] < 0] = 0
+        # all_regs_s[all_regs_s[..., 1] < 0] = 0
+        # all_regs_s[all_regs_s[..., 2] < 0] = 0
 
     if debug:
         r_inds = tr.full((*_r_inds.shape, 3), -2, device=device, dtype=itype)
@@ -618,11 +618,13 @@ class Operator:
         )
         self._flatten = _flatten
 
-        if not invalid and (
-                tr.any(self.regs[0] < 0) or
-                tr.any(self.regs[1] < 0) or
-                tr.any(self.regs[2] < 0)):
-            raise ValueError("Invalid region indices detected")
+        # FIXME: should turn this check back on
+        # see why zeroing out region index slows down operator
+        # if not invalid and (
+        #         tr.any(self.regs[0] < 0) or
+        #         tr.any(self.regs[1] < 0) or
+        #         tr.any(self.regs[2] < 0)):
+        #     raise ValueError("Invalid region indices detected")
 
         if _flatten:
             self.orig_shape = self.lens.shape

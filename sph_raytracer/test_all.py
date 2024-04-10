@@ -249,7 +249,7 @@ def test_operator():
     ]
     for grid in grids:
         geom = ViewGeom(xs, rays)
-        op = Operator(grid, geom)
+        op = Operator(grid, geom, _flatten=False)
         d = tr.ones(grid.shape)
         result = op(d)
         diam = 2 * (grid.size[0][1] - grid.size[0][0])
@@ -260,7 +260,7 @@ def test_operator():
     # trace ray through center of hollow sphere
     geom = ViewGeom([-100, 0, 0], [1, 0, 0])
     grid = SphericalGrid(shape=(25, 25, 25), size_r=(5, 10))
-    op = Operator(grid, geom)
+    op = Operator(grid, geom, _flatten=False)
 
 def test_conerectgeom():
     g = ConeRectGeom((11, 11), (4, 0, 1), fov=(23, 45))
