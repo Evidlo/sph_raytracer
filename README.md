@@ -8,8 +8,8 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
 - 3D spherical raytracing with optional support for evolving volume (4D)
 - implemented purely in PyTorch for easy integration with PyTorch's optimization and machine learning capabilities
-- support for custom detector shapes/sizes
-- optional retrieval framework for easily defining loss functions and parametric models
+- support for square/circular detectors or other custom detector shapes
+- optional retrieval framework for easily defining loss functions and parametric models (currently supports only static 3D volumes)
 
 ## Quickstart
 
@@ -21,8 +21,8 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
     python examples/static_retrieval.py
 
 <p>
-<img src="static_retrieval1.gif" height=250/>
-<img src="static_retrieval2.gif" height=250/>
+<img src="static_retrieval2.gif" height=200/>
+<img src="static_retrieval1.gif" height=200/>
 </p>
 
 ## Memory Usage
@@ -49,8 +49,8 @@ Below is a list of modules in this package and their purpose:
 
 Forward Raytracing
 
-- `raytracer.py` - computation of voxel indices for intersecting rays, line integration
-- `geometry.py` - viewing geometry definitions, spherical grid definition
+- `raytracer.py` - computation of voxel indices for intersecting rays, raytracing Operator
+- `geometry.py` - viewing geometry (detector) definitions, spherical grid definition
 
 Retrieval
 
