@@ -125,16 +125,16 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         all_lens_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
         all_lens_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
         all_lens_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
-        # all_regs_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
-        # all_regs_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
-        # all_regs_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
+        all_regs_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
+        all_regs_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
+        all_regs_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
 
         all_lens_s[all_regs_s[..., 0] < 0] = 0
         all_lens_s[all_regs_s[..., 1] < 0] = 0
         all_lens_s[all_regs_s[..., 2] < 0] = 0
-        # all_regs_s[all_regs_s[..., 0] < 0] = 0
-        # all_regs_s[all_regs_s[..., 1] < 0] = 0
-        # all_regs_s[all_regs_s[..., 2] < 0] = 0
+        all_regs_s[all_regs_s[..., 0] < 0] = 0
+        all_regs_s[all_regs_s[..., 1] < 0] = 0
+        all_regs_s[all_regs_s[..., 2] < 0] = 0
 
     if debug:
         r_inds = tr.full((*_r_inds.shape, 3), -2, device=device, dtype=itype)
@@ -617,6 +617,13 @@ class Operator:
             invalid=invalid, debug=debug
         )
         self._flatten = _flatten
+
+        if not invalid and (
+                tr.any(self.regs[0] < 0) or
+                tr.any(self.regs[1] < 0) or
+                tr.any(self.regs[2] < 0)):
+            raise ValueError("Invalid region indices detected")
+
         if _flatten:
             self.orig_shape = self.lens.shape
             self.regs = (
@@ -625,6 +632,7 @@ class Operator:
                 + self.regs[2]
             ).flatten()
             self.lens = self.lens.flatten()
+
 
         # NOTE: we flatten regs and lens here because otherwise PyTorch uses too much memory
         # self.orig_shape = self.regs.shape[:-1]
@@ -646,6 +654,8 @@ class Operator:
         """
         # if dynamic volume density:
         if density.ndim == 4:
+            if self._flatten:
+                raise ValueError("_flatten=True not supported for dynamic case yet")
             if self.dynamic:
                 t = tr.arange(len(density))[:, None, None, None]
                 return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
