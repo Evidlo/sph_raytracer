@@ -212,7 +212,7 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     Returns:
         t (tensor): distance of each point from x along ray
-            (*num_rays, 2 * num_spheres).  Can be negative
+            (*num_rays, 2 * num_spheres).  Can be negative or inf
         regions (tensor[int]): region index associated with each point
             (*num_rays, num_spheres).
         points (tensor): intersection points of rays with spheres
@@ -291,7 +291,7 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     Returns:
         t (tensor): distance of each point from x along ray
-            (*num_rays, 2 * num_cones).  Can be negative
+            (*num_rays, 2 * num_cones).  Can be negative or inf
         regions (tensor[int]): region index associated with each point
             (*num_rays, 2 * num_cones).
         points (tensor): intersection points of rays with cones
@@ -431,7 +431,7 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     Returns:
         t (tensor): distance of each point from x along ray
-            (*num_rays, num_planes).  Can be negative
+            (*num_rays, num_planes).  Can be negative or inf
         regions (tensor[int]): region index associated with each point
             (*num_rays, num_planes).
         points (tensor[float]): intersection points of rays with planes

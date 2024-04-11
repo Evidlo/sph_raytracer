@@ -27,7 +27,7 @@ x[:, :25, 25:] = 1
 geoms = []
 for theta in t.linspace(0, 2*t.pi, 50):
     geoms.append(
-        # use a circular shaped detector
+        # use a circular shaped detector (pointed at origin by default)
         ConeCircGeom(
             shape=(100, 50),
             pos=(5 * t.cos(theta), 5 * t.sin(theta), 1),

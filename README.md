@@ -6,7 +6,7 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
 ## Features
 
-- 3D spherical raytracing with optional support for evolving volume (4D)
+- 3D spherical raytracing with optional support for dynamic volume (4D)
 - implemented purely in PyTorch for easy integration with PyTorch's optimization and machine learning capabilities
 - support for square/circular detectors or other custom detector shapes
 - optional retrieval framework for easily defining loss functions and parametric models (currently supports only static 3D volumes)

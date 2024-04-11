@@ -7,6 +7,7 @@ from sph_raytracer import SphericalGrid, ConeRectGeom, Operator
 
 # define volume grid and viewing geometry vantage
 vol = SphericalGrid(shape=(50, 50, 50))
+# rectilinear detector with 45° FOV (pointed at origin by default)
 geom = ConeRectGeom(
     shape=(256, 256),
     pos=(5, 0, 0),
@@ -17,7 +18,8 @@ geom = ConeRectGeom(
 # to run on CPU, use device='cpu'
 op = Operator(vol, geom, device='cuda')
 
-# test density with two nested shells
+# generate a simple static test volume with two nested shells
+# to run on CPU, use device='cpu'
 x = t.zeros(vol.shape, device=op.device)
 x[-1, :, :] += 1
 x[-10, :, :] += 1

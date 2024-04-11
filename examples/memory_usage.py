@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
+# Peak memory requirement estimation
 
 import numpy as np
 
-# Peak memory requirement estimatator
-
-# detector
+# detector size
 npix1 = 50
 npix2 = 100
 
@@ -15,17 +14,29 @@ nazi = 50
 
 # number of observations
 nobs = 50
-nchan = 1
+nchan = 1 # (e.g. multiple detectors in a spacecraft)
 
 density = (nobs, nrad, nazi, nele)
 density_size = 8 * np.prod(density) / 1e9 # dynamic density
 
 # max number of voxels intersecting a ray
 nvox_ray = 2 * nrad + 2 * nele + nazi
-indices = (nchan, nobs, npix1, npix2, nvox_ray)
+# indices of intersecting voxels for each ray
+indices = (nchan, nobs, npix1, npix2, nvox_ray, 3)
+indices_dtype = 8
+# intersection lengths of intersecting voxels for each ray
 lens = (nchan, nobs, npix1, npix2, nvox_ray)
+lens_dtype = 2
+# volume density values along each ray
 densities = (nobs, npix1, npix2, nvox_ray)
-static_size = 2 * ((3 * 8 * np.prod(indices)) + (8 * np.prod(lens)) + (2 * np.prod(densities))) / 1e9
+densities_dtype = 2
+
+# total peak memory usage in GB
+static_size = 2 * (
+    (indices_dtype * np.prod(indices)) +
+    (lens_dtype * np.prod(lens)) +
+    (densities_dtype * np.prod(densities))
+) / 1e9
 
 print('\n--- Parameters ---\n')
 print(f'({nrad}, {nele}, {nazi}) volume')
