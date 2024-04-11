@@ -27,7 +27,7 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
 ## Memory Usage
 
-This library was implemented very simply using only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB of this library can be approximated with `examples/memory_usage.py`
+This library was uses only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB can be approximated with `examples/memory_usage.py`
 
 ``` python
 >>> %run ~/examples/memory_usage.py
@@ -61,7 +61,7 @@ Retrieval
 
 ## Running Tests
 
-    pytest sph_raytracer/tests.py
+    pytest sph_raytracer
     
 ## See Also
 

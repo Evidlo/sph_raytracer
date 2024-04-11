@@ -19,17 +19,18 @@ def gd(f, y, model, num_iterations=100,
        loss_fns=[SquareLoss()], lr=1e-1, optimizer=t.optim.Adam,
        optim_args={}, progress_bar=True
        ):
-    """Gradient descent to minimize loss function
+    """Gradient descent to minimize loss function.  Instantiates and optimizes a set of coefficients
+    for the given model with respect to provided loss functions
 
     Minimizes sum of weighted loss functions with respect to model coefficients:
-    e.g. `lam1 * loss_fn1(f, y, d, coeffs) + lam2 * loss_fn2(f, y, d, coeffs) + ...`
+    e.g. `loss_fn1(f, y, d, coeffs) + loss_fn2(f, y, d, coeffs) + ...`
 
     Args:
         f (Forward): forward operator with pytorch autograd support
         y (tensor): measurement stack
         model (science.model.Model): initialized model
         loss_fns (list[science.Loss]): custom loss functions which
-            accept (f, y, density, coeffs) as args
+            accept (f, y, density, coeffs) as args.  Losses are summed
         num_iterations (int): number of gradient descent iterations
         lr (float): learning rate
         optimizer (pytorch Optimizer): optimizer.  optional.  defaults to 'Adam'
