@@ -36,7 +36,7 @@ def test_r():
     xs = [(-3, 0, 0)]
     rays = [(0, 0, 1)]
     r_t, r_region = r_torch(rs, xs, rays)[:2]
-    assert tr.all(tr.isnan(r_t))
+    assert tr.all(tr.isinf(r_t))
 
     # ray tangent to shell
     xs = [(-3, 2, 0), (-3, -2, 0), (-3, -2, 0)]

@@ -271,6 +271,8 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     # mark region outside outermost shell as invalid
     regions[regions == len(rs) - 1] = -1
+    # set distance NaNs to infs
+    t[t.isnan()] = float('inf')
 
     return t, regions, points, inds, negative_crossing
 
@@ -410,6 +412,8 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     # mark region outside last cone as invalid
     regions[regions == len(phis) - 1] = -1
+    # set distance NaNs to infs
+    t[t.isnan()] = float('inf')
 
     return t, regions, points, inds, negative_crossing
 
@@ -493,6 +497,9 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     points[shadow] = float('inf')
     t[shadow] = float('inf')
+
+    # set distance NaNs to infs
+    t[t.isnan()] = float('inf')
 
     return t, regions, points, inds, negative_crossing
 
