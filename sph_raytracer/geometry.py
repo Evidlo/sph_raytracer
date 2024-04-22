@@ -91,10 +91,10 @@ class SphericalGrid:
         # otherwise compute grid
         elif (shape is not None) and (size is not None):
             if spacing == 'log':
-                rs_b = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1)
+                rs_b = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1, dtype=tr.float64)
                 rs = tr.sqrt(rs_b[1:] * rs_b[:-1])
             elif spacing == 'lin':
-                rs_b = tr.linspace(size.r[0], size.r[1], shape.r + 1)
+                rs_b = tr.linspace(size.r[0], size.r[1], shape.r + 1, dtype=tr.float64)
                 rs = (rs_b[1:] + rs_b[:-1]) / 2
             else:
                 raise ValueError("Invalid value for spacing")
