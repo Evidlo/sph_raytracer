@@ -98,9 +98,16 @@ class SquareRelLoss(Loss):
     def compute(self, f, y, d, c):
         """"""
         obs = f(d * self.volume_mask)
-        rel_err = (y - obs) / obs
-        rel_err = rel_err.nan_to_num() * self.projection_mask
-        return t.mean(rel_err**2)
+
+        # rel_err = (y - obs) / y
+        # rel_err = rel_err.nan_to_num() * self.projection_mask
+
+        zero_mask = (y != 0)
+        rel_err = t.zeros_like(y)
+        rel_err[zero_mask] = (y - obs)[zero_mask] / y[zero_mask]
+
+        return t.mean((self.projection_mask * rel_err)**2)
+
 
 class CheaterLoss(Loss):
     """L2 loss directly over density ground truth"""
@@ -114,11 +121,13 @@ class CheaterLoss(Loss):
         """"""
         return t.mean(self.volume_mask * (d - self.density_truth)**2)
 
+
 class NegRegularizer(Loss):
     """Mean of negative voxels"""
     def compute(self, f, y, d, c):
         """"""
         return t.mean(t.abs(self.volume_mask * d.clip(max=0)))
+
 
 class NegSumRegularizer(Loss):
     """Sum of negative voxels"""
