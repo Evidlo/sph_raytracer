@@ -1,7 +1,18 @@
-#!/usr/bin/env python3
+"""Optimizer loss functions
+
+The classes in this module serve as loss functions for the iterative reconstruction methods in `retrieval.py`.
+
+The class should be initialized by the user and then passed to the reconstruction method which will call `.compute()`
+on the loss function and try to minimize the weighted sum of all provided losses.
+
+Weights are stored internally in the `lam` parameter, which the user may set by multiplying the
+initialized loss object with a float or by providing a `lam` kwarg on initialization.
+"""
 
 from dataclasses import dataclass
 import torch as t
+
+
 
 @dataclass(unsafe_hash=True)
 class Loss:
@@ -23,13 +34,6 @@ class Loss:
     lam = 1
     fidelity = False
     use_grad = True
-
-    # def __init__(self, projection_mask=1, volume_mask=1, lam=1, fidelity=False, use_grad=True):
-    #     self.projection_mask = projection_mask
-    #     self.volume_mask = volume_mask
-    #     self.lam = lam
-    #     self.fidelity = fidelity
-    #     self.use_grad = use_grad
 
     def compute(self, f, y, d, c):
         """Compute loss

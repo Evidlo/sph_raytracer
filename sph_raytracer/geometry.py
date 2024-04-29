@@ -1,4 +1,13 @@
-#!/usr/bin/env python3
+"""Raytracer geometries
+
+This modules contains classes for fully specifying the geometry of a tomographic operator.
+
+SphericalGrid defines the shape and extent of the volume being raytraced, and ViewGeom (and its children)
+define the shape, position, and orientation of the detector for each measurement.
+
+The user may fully specify pixel lines-of-sight of custom detector with ViewGeom, or can use ConeCircGeom/ConeRectGeom
+for a cone-beam detector with known FOV and uniform pixel pitch.
+"""
 
 from collections import namedtuple
 import math
@@ -14,11 +23,18 @@ FTYPE = tr.float64
 class SphericalGrid:
     r"""Spherical grid information
 
+    This class specifies the physical geometry of the volume being raytraced.
+
+    The grid may be specified either by providing a shape and size of the grid,
+    or by manually specifying the locations of all voxels.
+
     Args:
-        size (tuple[tuple[float]]): Tuple of ranges for each dimension
-            ((r_min, r_max), (e_min, e_max), (a_min, a_max))
-        shape (tuple[int]): shape of spherical grid (r bins, elev bins, az bins)
-        spacing (str): radial shell spacing
+        size (tuple[tuple[float]]): Physical extent of grid, given as tuple of ranges
+            for each dimension ((r_min, r_max), (e_min, e_max), (a_min, a_max)).
+            Units should be given as (distance_units, radians, radians) for each dimension.
+        shape (tuple[int]): shape of spherical grid (N rad. bins, N elev. bins, N az. bins)
+        spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
+            or logarithmically (spacing='log')
         rs_b (ndarray, optional): manually specify radial shell boundaries.
         phis_b (ndarray, optional): manually specify elevation cone boundaries
             in radians [0,π] (measured from +Z axis).
@@ -30,9 +46,9 @@ class SphericalGrid:
         rs (tensor[float]): radial bin centers
         phis (tensor[float]): elevation bin centers
         thetas (tensor[float]): azimuth bin centers
-        r_bounds (tensor[float])
-        phi_bounds (tensor[float])
-        theta_bounds (tensor[float])
+        rs_b (tensor[float])
+        phis_b (tensor[float])
+        thetas_b (tensor[float])
         size: (tuple[tuple[float]])
 
     Usage:
@@ -159,7 +175,26 @@ class SphericalGrid:
 Segment = namedtuple('Segment', ['color', 'thickness', 'start', 'end'])
 
 class ViewGeom:
-    """Custom sensor with arbitrary ray placement"""
+    """Custom sensor with arbitrary ray placement.
+
+    Create a custom viewing geometry by specifying the start positions (i.e. absolute pixel locations)
+    and ray direction (i.e. pixel LOSs) for every pixel.  The pixels need not be in a grid or colocated in space.
+
+    The detector may be any shape as long as the last dimension has length 3.  The shape of the detector controls the shape
+    of images returned by the raytracer (`Operator`)
+
+    Args:
+        ray_starts (tensor): Pixel location array of shape (..., 3)
+        rays (tensor): Pixel LOS array of shape (..., 3)
+
+    Attributes:
+        ray_starts (tensor):
+        rays (tensor):
+        shape (tuple): Shape of the detector (excluding last dimension of provided rays)
+
+    Usage:
+
+    """
 
     def __init__(self, ray_starts, rays):
         self.ray_starts = tr.asarray(ray_starts, dtype=FTYPE)
@@ -323,9 +358,19 @@ class ConeCircGeom(ConeRectGeom):
         fov (float): detector field of view
     """
 
-    def __init__(self, *args, fov=45, **kwargs):
-
+    def __init__(self, *args, fov=45, spacing='lin', **kwargs):
         super().__init__(*args, fov=fov, **kwargs)
+
+        # build r, theta grid
+        # https://math.stackexchange.com/questions/73237/parametric-equation-of-a-circle-in-3d-space
+        if spacing == 'lin':
+            self.r = tr.linspace(0, tr.tan(tr.deg2rad(self.fov / 2)), self.shape[0])
+        elif spacing == 'log':
+            self.r = tr.logspace(0, tr.tan(tr.deg2rad(self.fov / 2)), self.shape[0])
+        else:
+            raise ValueError(f"Invalid spacing {spacing}")
+
+        self.theta = tr.linspace(0, 2 * tr.pi, self.shape[1])
 
     @property
     def rays(self):
@@ -333,14 +378,10 @@ class ConeCircGeom(ConeRectGeom):
         u = tr.cross(self.lookdir, self.updir)
         v = self.updir
 
-        # build r, theta grid
-        # https://math.stackexchange.com/questions/73237/parametric-equation-of-a-circle-in-3d-space
-        r = tr.linspace(0, tr.tan(tr.deg2rad(self.fov / 2)), self.shape[0])
-        theta = tr.linspace(0, 2 * tr.pi, self.shape[1])
         rays = (
             self.lookdir[None, None, :]
-            + r[:, None, None] * tr.cos(theta[None, :, None]) * u[None, None, :]
-            + r[:, None, None] * tr.sin(theta[None, :, None]) * v[None, None, :]
+            + self.r[:, None, None] * tr.cos(self.theta[None, :, None]) * u[None, None, :]
+            + self.r[:, None, None] * tr.sin(self.theta[None, :, None]) * v[None, None, :]
         )
         rays /= tr.linalg.norm(rays, axis=-1)[..., None]
         return rays

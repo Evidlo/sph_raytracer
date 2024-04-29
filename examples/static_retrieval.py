@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Evan Widloski - 2024-04-10
-# Demonstration of tomographic retrieval of a a static volume
+# Demonstration of tomographic retrieval of a static volume
 
 import torch as t
 import matplotlib.pyplot as plt

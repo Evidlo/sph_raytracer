@@ -1,11 +1,16 @@
-#!/usr/bin/env python3
+"""Tomographic retrieval module
+
+This module provides methods for performing tomographic retrievals from a set of measurements
+"""
 
 import torch as t
 from tqdm import tqdm
 from .loss import SquareLoss
 
 def detach_loss(loss):
-    """Detach a torch loss result so it is not part of the autograd graph
+    """Detach a torch loss result so it is not part of the autograd graph.  Use this when
+    keeping track of some oracle loss function (e.g. comparing against a known ground-truth)
+    that is not used by the PyTorch optimizer
 
     Args:
         loss (tensor or float): tensor with single float
@@ -25,6 +30,8 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     Minimizes sum of weighted loss functions with respect to model coefficients:
     e.g. `loss_fn1(f, y, d, coeffs) + loss_fn2(f, y, d, coeffs) + ...`
 
+    Use Ctrl-C to stop iterations early and return best result so far.
+
     Args:
         f (Forward): forward operator with pytorch autograd support
         y (tensor): measurement stack
@@ -41,7 +48,7 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     Returns:
         coeffs (tensor): retrieved coeffs with smallest loss.  shape `model.coeffs_shape`
         y (tensor): retrieved coeffs passed through model and forward operator: f(model(coeffs))
-        losses (dict): loss for each loss function at every iteration
+        losses (dict[list[float]]): loss for each loss function at every iteration
     """
 
     if f.grid != model.grid:
@@ -60,8 +67,6 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
 
     best_loss = float('inf')
     best_coeffs = None
-
-    # coeffs_log = []
 
     optimizer = optimizer([coeffs], lr=lr, **optim_args)
     # initialize empty list for logging loss values each iteration
@@ -101,9 +106,6 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     # allow user to stop iterations
     except KeyboardInterrupt:
         pass
-
-        # coeffs_log.append(coeffs.detach().cpu())
-    # losses['coeffs'] = coeffs_log
 
     y_result = f(model(best_coeffs))
     return best_coeffs, y_result, losses
