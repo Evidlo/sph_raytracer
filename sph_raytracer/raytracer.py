@@ -43,7 +43,7 @@ def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False
     return x.moveaxis(0, dim)
 
 
-def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, invalid=False, debug=False):
+def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice='cpu', invalid=False, debug=False):
     """Sort points by distance.  Then filter out invalid intersections (nan t values)
     and points which lie outside radius `max_r` (inplace)
 
@@ -55,6 +55,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         itype (torch dtype): type specification for ints
         invalid (bool): filter out invalid lengths/regions
         device (str): PyTorch device of returned tensors
+        pdevice (str): PyTorch device of returned tensors
 
     Returns:
         inds (tensor[int]): voxel indices of every voxel that ray intersects with
@@ -67,11 +68,11 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
 
     """
     # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _r_inds, _r_ns, _
-    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.phis_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.phis_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _e_inds, _e_ns, _
-    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.thetas_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.thetas_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _a_inds, _a_ns, _
 
     # concatenate intersection distances/points from all geometry kinds
@@ -80,11 +81,11 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # concatenate regions and place into appropriate column
     # FIXME: cleaner dtype/device handling?
     # FIXME: using -2 to represent invalid region index
-    r_regs = tr.full((3, *_r_regs.shape), -2, device=device, dtype=itype)
+    r_regs = tr.full((3, *_r_regs.shape), -2, device=pdevice, dtype=itype)
     r_regs[0, ...] = _r_regs
-    e_regs = tr.full((3, *_e_regs.shape), -2, device=device, dtype=itype)
+    e_regs = tr.full((3, *_e_regs.shape), -2, device=pdevice, dtype=itype)
     e_regs[1, ...] = _e_regs
-    a_regs = tr.full((3, *_a_regs.shape), -2, device=device, dtype=itype)
+    a_regs = tr.full((3, *_a_regs.shape), -2, device=pdevice, dtype=itype)
     a_regs[2, ...] = _a_regs
     all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-1)
     # _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
@@ -110,13 +111,13 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         all_regs_s,
         # tr.full_like(all_regs_s, -2)[..., 0, :],
         # find_starts(grid, rays),
-        find_starts(grid, xs, ftype=ftype, device=device),
+        find_starts(grid, xs, ftype=ftype, device=pdevice),
         dim=-1, fill_what=-2, inplace=True
     )
 
     # segment intersection lengths with voxels
     # last segment in each ray is infinitely long
-    inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), dtype=ftype, device=device)
+    inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), dtype=ftype, device=pdevice)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
     if not debug: del all_ts_s
 
@@ -142,11 +143,11 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         # all_regs_s[all_regs_s[2, ...] < 0] = 0
 
     if debug:
-        r_inds = tr.full((3, *_r_inds.shape), -1, device=device, dtype=itype)
+        r_inds = tr.full((3, *_r_inds.shape), -1, device=pdevice, dtype=itype)
         r_inds[0, ...] = _r_inds
-        e_inds = tr.full((3, *_e_inds.shape), -1, device=device, dtype=itype)
+        e_inds = tr.full((3, *_e_inds.shape), -1, device=pdevice, dtype=itype)
         e_inds[1, ...] = _e_inds
-        a_inds = tr.full((3, *_a_inds.shape), -1, device=device, dtype=itype)
+        a_inds = tr.full((3, *_a_inds.shape), -1, device=pdevice, dtype=itype)
         a_inds[2, ...] = _a_inds
         all_inds = tr.cat((r_inds, e_inds, a_inds), dim=-1)
         _all_inds = tr.cat((_r_inds, _e_inds, _a_inds), dim=-1)
@@ -187,7 +188,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # FIXME: pytorch requires int64 for indexing
     # r, e, a = all_regs_s.moveaxis(-1, 0).type(tr.int64)
     # return (r, e, a), all_lens_s
-    return all_regs_s, all_lens_s
+    return all_regs_s.to(device=device), all_lens_s.to(device=device)
 
 
 def isclose(a, b, factor=3):
