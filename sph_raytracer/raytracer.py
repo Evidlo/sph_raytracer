@@ -70,12 +70,15 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
 
     # --- compute voxel indices for all rays and their distances ---
     r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    if not debug: del _r_inds, _r_ns, _
     e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.phis_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    if not debug: del _e_inds, _e_ns, _
     a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.thetas_b, xs, rays, ftype=ftype, itype=itype, device=device)
+    if not debug: del _a_inds, _a_ns, _
 
     # concatenate intersection distances/points from all geometry kinds
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
-    # del r_t, e_t, a_t
+    del r_t, e_t, a_t
     # concatenate regions and place into appropriate column
     # FIXME: cleaner dtype/device handling?
     # FIXME: using -2 to represent invalid region index
@@ -86,9 +89,11 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     a_regs = tr.full((*_a_regs.shape, 3), -2, device=device, dtype=itype)
     a_regs[..., 2] = _a_regs
     all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-2)
-    _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
+    # _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
+    import ipdb
+    ipdb.set_trace()
 
-    # del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
+    del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
 
     # mark regions behind ray start as invalid
     # all_regs[all_ts < 0] = -2
@@ -97,10 +102,13 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # sort points by distance
     # https://discuss.pytorch.org/t/sorting-and-rearranging-multi-dimensional-tensors/148340
     all_ts_s, s = all_ts.sort(dim=-1)
-    _all_regs_s = _all_regs.gather(-1, s)
+    del all_ts
+    # _all_regs_s = _all_regs.gather(-1, s)
     # s_expanded = s[..., None].repeat_interleave(3, dim=-1)
     # all_regs_s = all_regs.gather(1, s_expanded)
     all_regs_s = tr.take_along_dim(all_regs, s[..., None], dim=-2)
+    del all_regs
+    if not debug: del s
 
     forward_fill_jit(
         all_regs_s,
@@ -114,6 +122,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # last segment in each ray is infinitely long
     inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), **spec)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
+    if not debug: del all_ts_s
 
 
     if not invalid:
@@ -667,7 +676,13 @@ class Operator:
                 raise ValueError("_flatten=True not supported for dynamic case yet")
             if self.dynamic:
                 t = tr.arange(len(density))[:, None, None, None]
-                return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
+                # result = density[(t, *self.regs)]
+                print('d:', density.shape, 'i:', t.shape, self.regs[0].shape)
+                result = density[t, self.regs[0], self.regs[1], self.regs[2]]
+                result *= self.lens
+                result = result.sum(axis=-1)
+                return result
+                # return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
                 # NOTE: this is a flattened form of the above which uses less memory
             else:
                 r, e, a = self.regs
