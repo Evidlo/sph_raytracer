@@ -11,7 +11,7 @@ na = None
 
 DEVICE = 'cpu'
 FTYPE = tr.float64
-ITYPE = tr.int8
+ITYPE = tr.int64
 
 @tr.jit.script
 def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False):
@@ -54,6 +54,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         ftype (torch dtype): type specification for floats
         itype (torch dtype): type specification for ints
         invalid (bool): filter out invalid lengths/regions
+        device (str): PyTorch device of returned tensors
 
     Returns:
         inds (tensor[int]): voxel indices of every voxel that ray intersects with
@@ -65,9 +66,6 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     where `max_int_voxels` is `2*grid.shape[0] + 2*grid.shape[1] + grid.shape[2]`
 
     """
-    spec = {'dtype': ftype, 'device': device}
-    ispec = {'dtype': itype, 'device': device}
-
     # --- compute voxel indices for all rays and their distances ---
     r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=device)
     if not debug: del _r_inds, _r_ns, _
@@ -118,7 +116,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
 
     # segment intersection lengths with voxels
     # last segment in each ray is infinitely long
-    inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), **spec)
+    inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), dtype=ftype, device=device)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
     if not debug: del all_ts_s
 
@@ -189,7 +187,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # FIXME: pytorch requires int64 for indexing
     # r, e, a = all_regs_s.moveaxis(-1, 0).type(tr.int64)
     # return (r, e, a), all_lens_s
-    return all_regs_s.type(tr.int64), all_lens_s
+    return all_regs_s, all_lens_s
 
 
 def isclose(a, b, factor=3):
