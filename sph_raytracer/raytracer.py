@@ -82,16 +82,14 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # concatenate regions and place into appropriate column
     # FIXME: cleaner dtype/device handling?
     # FIXME: using -2 to represent invalid region index
-    r_regs = tr.full((*_r_regs.shape, 3), -2, device=device, dtype=itype)
-    r_regs[..., 0] = _r_regs
-    e_regs = tr.full((*_e_regs.shape, 3), -2, device=device, dtype=itype)
-    e_regs[..., 1] = _e_regs
-    a_regs = tr.full((*_a_regs.shape, 3), -2, device=device, dtype=itype)
-    a_regs[..., 2] = _a_regs
-    all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-2)
+    r_regs = tr.full((3, *_r_regs.shape), -2, device=device, dtype=itype)
+    r_regs[0, ...] = _r_regs
+    e_regs = tr.full((3, *_e_regs.shape), -2, device=device, dtype=itype)
+    e_regs[1, ...] = _e_regs
+    a_regs = tr.full((3, *_a_regs.shape), -2, device=device, dtype=itype)
+    a_regs[2, ...] = _a_regs
+    all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-1)
     # _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
-    import ipdb
-    ipdb.set_trace()
 
     del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
 
@@ -106,7 +104,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # _all_regs_s = _all_regs.gather(-1, s)
     # s_expanded = s[..., None].repeat_interleave(3, dim=-1)
     # all_regs_s = all_regs.gather(1, s_expanded)
-    all_regs_s = tr.take_along_dim(all_regs, s[..., None], dim=-2)
+    all_regs_s = tr.take_along_dim(all_regs, s[None, ...], dim=-1)
     del all_regs
     if not debug: del s
 
@@ -115,7 +113,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         # tr.full_like(all_regs_s, -2)[..., 0, :],
         # find_starts(grid, rays),
         find_starts(grid, xs, ftype=ftype, device=device),
-        dim=-2, fill_what=-2, inplace=True
+        dim=-1, fill_what=-2, inplace=True
     )
 
     # segment intersection lengths with voxels
@@ -131,31 +129,31 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         all_lens_s[invalid] = 0
 
         # set invalid regions to 0 and zero associated segment length
-        all_lens_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
-        all_lens_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
-        all_lens_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
-        # all_regs_s[all_regs_s[..., 0] > grid.shape[0] - 1] = 0
-        # all_regs_s[all_regs_s[..., 1] > grid.shape[1] - 1] = 0
-        # all_regs_s[all_regs_s[..., 2] > grid.shape[2] - 1] = 0
+        all_lens_s[all_regs_s[0, ...] > grid.shape[0] - 1] = 0
+        all_lens_s[all_regs_s[1, ...] > grid.shape[1] - 1] = 0
+        all_lens_s[all_regs_s[2, ...] > grid.shape[2] - 1] = 0
+        # all_regs_s[all_regs_s[0, ...] > grid.shape[0] - 1] = 0
+        # all_regs_s[all_regs_s[1, ...] > grid.shape[1] - 1] = 0
+        # all_regs_s[all_regs_s[2, ...] > grid.shape[2] - 1] = 0
 
-        all_lens_s[all_regs_s[..., 0] < 0] = 0
-        all_lens_s[all_regs_s[..., 1] < 0] = 0
-        all_lens_s[all_regs_s[..., 2] < 0] = 0
-        # all_regs_s[all_regs_s[..., 0] < 0] = 0
-        # all_regs_s[all_regs_s[..., 1] < 0] = 0
-        # all_regs_s[all_regs_s[..., 2] < 0] = 0
+        all_lens_s[all_regs_s[0, ...] < 0] = 0
+        all_lens_s[all_regs_s[1, ...] < 0] = 0
+        all_lens_s[all_regs_s[2, ...] < 0] = 0
+        # all_regs_s[all_regs_s[0, ...] < 0] = 0
+        # all_regs_s[all_regs_s[1, ...] < 0] = 0
+        # all_regs_s[all_regs_s[2, ...] < 0] = 0
 
     if debug:
-        r_inds = tr.full((*_r_inds.shape, 3), -2, device=device, dtype=itype)
-        r_inds[..., 0] = _r_inds
-        e_inds = tr.full((*_e_inds.shape, 3), -2, device=device, dtype=itype)
-        e_inds[..., 1] = _e_inds
-        a_inds = tr.full((*_a_inds.shape, 3), -2, device=device, dtype=itype)
-        a_inds[..., 2] = _a_inds
-        all_inds = tr.cat((r_inds, e_inds, a_inds), dim=-2)
+        r_inds = tr.full((3, *_r_inds.shape), -1, device=device, dtype=itype)
+        r_inds[0, ...] = _r_inds
+        e_inds = tr.full((3, *_e_inds.shape), -1, device=device, dtype=itype)
+        e_inds[1, ...] = _e_inds
+        a_inds = tr.full((3, *_a_inds.shape), -1, device=device, dtype=itype)
+        a_inds[2, ...] = _a_inds
+        all_inds = tr.cat((r_inds, e_inds, a_inds), dim=-1)
         _all_inds = tr.cat((_r_inds, _e_inds, _a_inds), dim=-1)
         _all_inds_s = _all_inds.gather(-1, s)
-        all_inds_s = tr.take_along_dim(all_inds, s[..., None], dim=-2)
+        all_inds_s = tr.take_along_dim(all_inds, s[None, ...], dim=-1)
         _all_ns = tr.cat((_r_ns, _e_ns, _a_ns), dim=-1)
         _all_ns_s = _all_ns.gather(-1, s)
         _all_kinds = tr.cat((tr.full_like(_r_inds, 0), tr.full_like(_e_inds, 1), tr.full_like(_a_inds, 2)), dim=-1)
@@ -164,18 +162,19 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
         shp = len(all_regs_s.shape)
         if shp == 4:
             which = (0, 0)
+            regs = all_regs_s[:, 0, 0]
         elif shp == 3:
             which = (0,)
+            regs = all_regs_s[:, 0]
         else:
-            raise ValueError("Wrong shape {all_regs_s.shape}")
-        regs = all_regs_s[which]
+            raise ValueError(f"Wrong shape {all_regs_s.shape}")
         lens = all_lens_s[which]
         ts   = all_ts_s[which]
         inds = _all_inds_s[which]
         ns = _all_ns_s[which]
         kinds = _all_kinds_s[which]
         kmap = {0:'r', 1:'e', 2:'a'}
-        print(find_starts(grid, xs))
+        print(find_starts(grid, xs).flatten())
         for k, r, l, t_, ind, n in zip(kinds, regs, lens, ts, inds, ns):
             print(
                 f'{kmap[int(k)]:<2}',
@@ -190,7 +189,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, inval
     # FIXME: pytorch requires int64 for indexing
     # r, e, a = all_regs_s.moveaxis(-1, 0).type(tr.int64)
     # return (r, e, a), all_lens_s
-    return tuple(all_regs_s.moveaxis(-1, 0).type(tr.int64)), all_lens_s
+    return all_regs_s.type(tr.int64), all_lens_s
 
 
 def isclose(a, b, factor=3):
@@ -602,7 +601,7 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     e_reg[e_reg == grid.shape[1]] = -1
     a_reg[a_reg == grid.shape[2]] = -1
 
-    return tr.stack((r_reg, e_reg, a_reg), axis=-1)
+    return tr.stack((r_reg, e_reg, a_reg), axis=0)
 
 
 class Operator:
