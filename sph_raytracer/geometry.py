@@ -29,9 +29,9 @@ class SphericalGrid:
     or by manually specifying the locations of all voxels.
 
     Args:
-        size (tuple[tuple[float]]): Physical extent of grid, given as tuple of ranges
-            for each dimension ((r_min, r_max), (e_min, e_max), (a_min, a_max)).
-            Units should be given as (distance_units, radians, radians) for each dimension.
+        size_r (tuple[float]): Radial extent of grid (r_min, r_max) with units of distance.
+        size_e (tuple[float]): Elevational extent of grid (e_min, e_max) with units of radians.
+        size_a (tuple[float]): Azimuthal extent of grid (e_min, e_max) with units of radians.
         shape (tuple[int]): shape of spherical grid (N rad. bins, N elev. bins, N az. bins)
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
@@ -165,6 +165,9 @@ class SphericalGrid:
         # Plot the surface
         artist = ax.plot_surface(x, y, z, zorder=-999)
         ax.set_aspect('equal')
+        ax.set_xlabel('X', labelpad=-5)
+        ax.set_ylabel('Y', labelpad=-5)
+        ax.set_zlabel('Z', labelpad=-5)
 
         return artist
 
@@ -221,6 +224,44 @@ class ViewGeom:
         )"""
         from inspect import cleandoc
         return cleandoc(string)
+
+    def plot(self, ax=None):
+        """Generate Matplotlib wireframe plot for this object
+
+        Returns:
+            matplotlib Axes
+        """
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+        if ax is None:
+            fig = plt.figure(figsize=(3, 3))
+            ax = fig.add_subplot(projection='3d', computed_zorder=False)
+
+        # segments, widths, colors = wireframe[0]
+        # lc = Line3DCollection(segments, linewidths=widths, colors=colors)
+        lc = Line3DCollection([])
+        ax.add_collection(lc)
+
+        def update(num):
+            segments, widths, colors = self._wireframe[num]
+            lc.set_segments(segments)
+            lc.set_linewidth(widths)
+            lc.set_colors(colors)
+            return lc,
+        self._update = update
+        update(0)
+        # limits and labels
+        # lim = max(tr.linalg.norm(self.geom.ray_starts, dim=-1))
+        lim = tr.abs(self.ray_starts).max()
+        ax.set_xlabel('X', labelpad=-5)
+        ax.set_ylabel('Y', labelpad=-5)
+        ax.set_zlabel('Z', labelpad=-5)
+        ax.set_xlim3d([-lim, lim])
+        ax.set_ylim3d([-lim, lim])
+        ax.set_zlim3d([-lim, lim])
+
+        return ax
 
 
 class ViewGeomCollection(ViewGeom):
@@ -344,7 +385,7 @@ class ConeRectGeom(ViewGeom):
         plane_lines = tr.stack((corners, corners.roll(-1, dims=0)), dim=1)
 
         segments = tr.concat((cone_lines, plane_lines))
-        return [[segments, tr.ones(len(segments)), ['dimgray'] * len(segments)]]
+        return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
 
 
 class ConeCircGeom(ConeRectGeom):
@@ -400,4 +441,4 @@ class ConeCircGeom(ConeRectGeom):
         plane_lines = tr.stack((outer, outer.roll(-1, dims=0)), dim=1)
 
         segments = tr.concat((cone_lines, plane_lines))
-        return [[segments, tr.ones(len(segments)), ['dimgray'] * len(segments)]]
+        return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
