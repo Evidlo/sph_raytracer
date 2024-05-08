@@ -293,3 +293,37 @@ def test_conecircgeom():
     assert check(g.rays[0, 0], g.lookdir)
     # generate wireframe
     g._wireframe
+
+def test_parallelgeom():
+    g = ParallelGeom((11, 11), (4, 0, 1), size=(2, 3))
+
+    # check ray separation
+    assert check(
+        tr.linalg.norm(g.ray_starts[5, 0] - g.ray_starts[5, -1]),
+        g.size[1]
+    )
+    assert check(
+        tr.linalg.norm(g.ray_starts[0, 5] - g.ray_starts[-1, 5]),
+        g.size[0]
+    )
+    # check lookdir
+    assert all((g.rays == g.lookdir).flatten())
+
+    # single pixel detector
+    g = ParallelGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0))
+    # check lookdir
+    assert check(g.rays[0, 0], g.lookdir)
+    # generate wireframe
+    g._wireframe
+
+
+def test_viewgeom():
+    # not much to test here.  just instantiate a ViewGeom with random LOS's
+    rays = tr.rand((4, 4, 3))
+    ray_starts=tr.tensor((10, 0, 0)).broadcast_to(rays.shape)
+    g = ViewGeom(
+        rays=rays,
+        ray_starts=ray_starts
+    )
+    # generate wireframe
+    g._wireframe

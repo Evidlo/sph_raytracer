@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from .plotting import image_stack, preview3d, color_negative
-from .geometry import ConeCircGeom, ConeRectGeom, SphericalGrid
+from .geometry import ConeCircGeom, ConeRectGeom, SphericalGrid, ParallelGeom
 import torch as tr
 import matplotlib
 
@@ -22,3 +22,13 @@ def test_image_stack():
     anim = image_stack(images, vg)
     vg = ConeRectGeom(vg.shape, (1, 0, 0))
     anim = image_stack(images, vg)
+
+def test_viewgeom_plot():
+    geoms = [
+        ConeCircGeom((11, 11), (1, 0, 0)),
+        ConeRectGeom((11, 11), (1, 0, 0)),
+        ParallelGeom((11, 11), (1, 0, 0)),
+    ]
+    matplotlib.use('Agg')
+    for g in geoms:
+        g.plot()
