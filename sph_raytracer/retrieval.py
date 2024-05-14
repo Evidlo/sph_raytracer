@@ -21,8 +21,8 @@ def detach_loss(loss):
     return float(loss.detach().cpu()) if isinstance(loss, t.Tensor) else loss
 
 def gd(f, y, model, coeffs=None, num_iterations=100,
-       loss_fns=[SquareLoss()], lr=1e-1, optimizer=t.optim.Adam,
-       optim_args={}, progress_bar=True
+       loss_fns=[SquareLoss()], optim=t.optim.Adam,
+       progress_bar=True, **kwargs
        ):
     """Gradient descent to minimize loss function.  Instantiates and optimizes a set of coefficients
     for the given model with respect to provided loss functions
@@ -41,9 +41,8 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         loss_fns (list[science.Loss]): custom loss functions which
             accept (f, y, density, coeffs) as args.  Losses are summed
         num_iterations (int): number of gradient descent iterations
-        lr (float): learning rate
-        optimizer (pytorch Optimizer): optimizer.  optional.  defaults to 'Adam'
-        optim_args (dict): optional optimizer arguments
+        optim (pytorch Optimizer): optimizer.  optional.  defaults to 'Adam'
+        **kwargs (dict): optional optimizer arguments
 
     Returns:
         coeffs (tensor): retrieved coeffs with smallest loss.  shape `model.coeffs_shape`
@@ -68,13 +67,13 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     best_loss = float('inf')
     best_coeffs = None
 
-    optimizer = optimizer([coeffs], lr=lr, **optim_args)
+    optim = optim([coeffs], **kwargs)
     # initialize empty list for logging loss values each iteration
     losses = {loss_fn: [] for loss_fn in loss_fns}
     # perform requested number of iterations
     try:
         for _ in (pbar := tqdm(range(num_iterations), disable=not progress_bar)):
-            optimizer.zero_grad()
+            optim.zero_grad()
 
             density = model(coeffs)
 
@@ -97,7 +96,7 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
                 best_coeffs = coeffs
 
             tot_loss.backward(retain_graph=True)
-            optimizer.step()
+            optim.step()
 
             # do coeffs projections after gradient step
             if hasattr(model, 'proj'):
