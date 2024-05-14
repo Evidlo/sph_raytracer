@@ -9,7 +9,7 @@ Weights are stored internally in the `lam` parameter, which the user may set by 
 initialized loss object with a float or by providing a `lam` kwarg on initialization.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import torch as t
 
 
@@ -29,11 +29,16 @@ class Loss:
         gd(..., losses=[5 * MyLoss(), 3 * MyLoss2()], ...)
     """
 
-    projection_mask = 1
-    volume_mask = 1
-    lam = 1
-    fidelity = False
-    use_grad = True
+    # projection_mask: t.Tensor = 1
+    # volume_mask: t.Tensor = 1
+    # lam: float = 1
+    # fidelity: bool = False
+    # use_grad: bool = True
+    projection_mask: t.Tensor = field(kw_only=True, default=1)
+    volume_mask: t.Tensor = field(kw_only=True, default=1)
+    lam: float = field(kw_only=True, default=1)
+    fidelity: bool = field(kw_only=True, default=False)
+    use_grad: bool = field(kw_only=True, default=True)
 
     def compute(self, f, y, d, c):
         """Compute loss
@@ -84,16 +89,19 @@ class Loss:
         # return f'{type(self).__name__}'
 
 
+@dataclass(unsafe_hash=True, repr=False)
 class SquareLoss(Loss):
     """Standard mean L2 loss"""
 
-    fidelity = True
+    fidelity: bool = True
 
     def compute(self, f, y, d, c):
         """"""
-        return t.mean(self.projection_mask * (y - f(d * self.volume_mask))**2)
+        result = t.mean(self.projection_mask * (y - f(d * self.volume_mask))**2)
+        return result
 
 
+@dataclass(unsafe_hash=True, repr=False)
 class SquareRelLoss(Loss):
     """Loss as mean percent error"""
 
@@ -113,6 +121,7 @@ class SquareRelLoss(Loss):
         return t.mean((self.projection_mask * rel_err)**2)
 
 
+@dataclass(unsafe_hash=True, repr=False)
 class CheaterLoss(Loss):
     """L2 loss directly over density ground truth"""
 
@@ -126,6 +135,7 @@ class CheaterLoss(Loss):
         return t.mean(self.volume_mask * (d - self.density_truth)**2)
 
 
+@dataclass(unsafe_hash=True, repr=False)
 class NegRegularizer(Loss):
     """Mean of negative voxels"""
     def compute(self, f, y, d, c):
@@ -133,6 +143,7 @@ class NegRegularizer(Loss):
         return t.mean(t.abs(self.volume_mask * d.clip(max=0)))
 
 
+@dataclass(unsafe_hash=True, repr=False)
 class NegSumRegularizer(Loss):
     """Sum of negative voxels"""
     def compute(self, f, y, d, c):
