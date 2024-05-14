@@ -80,7 +80,6 @@ from .raytracer import Operator
 #     def __radd__(self, other):
 #         return self.__add__(other)
 
-
 def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs):
     """Animate a stack of images
 
@@ -144,8 +143,8 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
         artists = [[imshow(im, g, animated=True, vmin=vmin, vmax=vmax, **kwargs)] for im, g in zip(images, geom)]
         result = animation.ArtistAnimation(ax.figure, artists, interval=200)
     elif images.ndim == 2:
-        artists = [imshow(images, geom, **kwargs)]
-        result = artists[0]
+        artists = [[imshow(images, geom, **kwargs)]]
+        result = artists[0][0]
     else:
         raise ValueError("Invalid images shape")
 
