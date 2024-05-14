@@ -616,7 +616,7 @@ class Operator:
     """
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE,
-                 debug=False, invalid=False, _flatten=True):
+                 debug=False, invalid=False, _flatten=False):
         self.grid = grid
         self.geom = geom
         if dynamic is None:
