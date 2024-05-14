@@ -13,7 +13,9 @@ from collections import namedtuple
 import math
 import torch as tr
 
-__all__ = ['SphericalGrid', 'ConeRectGeom', 'ConeCircGeom', 'ViewGeomCollection', 'ViewGeom']
+__all__ = ['SphericalGrid', 'ConeRectGeom', 'ConeCircGeom',
+           'ViewGeomCollection', 'ViewGeom', 'ParallelGeom'
+           ]
 
 Size = namedtuple('Size', ['r', 'e', 'a'])
 Shape = namedtuple('Shape', ['r', 'e', 'a'])
@@ -29,9 +31,9 @@ class SphericalGrid:
     or by manually specifying the locations of all voxels.
 
     Args:
-        size (tuple[tuple[float]]): Physical extent of grid, given as tuple of ranges
-            for each dimension ((r_min, r_max), (e_min, e_max), (a_min, a_max)).
-            Units should be given as (distance_units, radians, radians) for each dimension.
+        size_r (tuple[float]): Radial extent of grid (r_min, r_max) with units of distance.
+        size_e (tuple[float]): Elevational extent of grid (e_min, e_max) with units of radians.
+        size_a (tuple[float]): Azimuthal extent of grid (e_min, e_max) with units of radians.
         shape (tuple[int]): shape of spherical grid (N rad. bins, N elev. bins, N az. bins)
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
@@ -165,6 +167,9 @@ class SphericalGrid:
         # Plot the surface
         artist = ax.plot_surface(x, y, z, zorder=-999)
         ax.set_aspect('equal')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
 
         return artist
 
@@ -203,7 +208,7 @@ class ViewGeom:
         self.shape = self.rays.shape[:-1]
 
     def __add__(self, other):
-        if other == 0:
+        if other == 0 or other == None:
             return ViewGeomCollection(self)
         if isinstance(other, ViewGeomCollection):
             other.geoms.append(self)
@@ -221,6 +226,48 @@ class ViewGeom:
         )"""
         from inspect import cleandoc
         return cleandoc(string)
+
+    @property
+    def _wireframe(self):
+        """(segments, widths, colors): Wireframe for 3D visualization"""
+        # draw FOV corners
+
+        ray_ends = (
+            self.ray_starts +
+            self.rays * 2 * tr.linalg.norm(self.ray_starts, dim=-1)[..., None]
+        )
+        segments = tr.stack((self.ray_starts.reshape(-1, 3), ray_ends.reshape(-1, 3)), dim=1)
+
+        return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
+
+
+    def plot(self, ax=None):
+        """Generate Matplotlib wireframe plot for this object
+
+        Returns:
+            matplotlib Axes
+        """
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+        if ax is None:
+            fig = plt.figure(figsize=(3, 3))
+            ax = fig.add_subplot(projection='3d', computed_zorder=False)
+
+        segments, widths, colors = self._wireframe[0]
+        lc = Line3DCollection(segments, linewidths=widths, colors=colors)
+        ax.add_collection(lc)
+
+        # limits and labels
+        lim = tr.abs(self.ray_starts).max()
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_xlim3d([-lim, lim])
+        ax.set_ylim3d([-lim, lim])
+        ax.set_zlim3d([-lim, lim])
+
+        return ax
 
 
 class ViewGeomCollection(ViewGeom):
@@ -267,6 +314,46 @@ class ViewGeomCollection(ViewGeom):
     def _wireframe(self):
         """(segments, widths, colors): Wireframe for 3D visualization"""
         return sum([g._wireframe for g in self.geoms], [])
+
+    def plot(self, ax=None):
+        """Generate Matplotlib wireframe plot for this object
+
+        Returns:
+            matplotlib Axes
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib import animation
+        from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+        if ax is None:
+            fig = plt.figure(figsize=(3, 3))
+            ax = fig.add_subplot(projection='3d', computed_zorder=False)
+
+        wireframe = self._wireframe
+
+        lc = Line3DCollection([])
+        ax.add_collection(lc)
+
+        def update(num):
+            segments, widths, colors = wireframe[num]
+            lc.set_segments(segments)
+            lc.set_linewidth(widths)
+            lc.set_colors(colors)
+            return lc,
+        self._update = update
+        update(0)
+        # limits and labels
+        # lim = max(tr.linalg.norm(self.geom.ray_starts, dim=-1))
+        lim = tr.abs(self.ray_starts).max()
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_xlim3d([-lim, lim])
+        ax.set_ylim3d([-lim, lim])
+        ax.set_zlim3d([-lim, lim])
+
+        N = len(wireframe)
+        return animation.FuncAnimation(ax.figure, update, N, interval=3000/N, blit=False)
 
 
 class ConeRectGeom(ViewGeom):
@@ -323,7 +410,7 @@ class ConeRectGeom(ViewGeom):
         return self.pos[None, None, :]
 
     def __repr__(self):
-        string = f"""ConeRectGeom(
+        string = f"""{self.__class__.__name__}(
             shape={self.shape}
             pos={self.pos.tolist()},
             lookdir={self.lookdir.tolist()},
@@ -344,7 +431,7 @@ class ConeRectGeom(ViewGeom):
         plane_lines = tr.stack((corners, corners.roll(-1, dims=0)), dim=1)
 
         segments = tr.concat((cone_lines, plane_lines))
-        return [[segments, tr.ones(len(segments)), ['dimgray'] * len(segments)]]
+        return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
 
 
 class ConeCircGeom(ConeRectGeom):
@@ -400,4 +487,81 @@ class ConeCircGeom(ConeRectGeom):
         plane_lines = tr.stack((outer, outer.roll(-1, dims=0)), dim=1)
 
         segments = tr.concat((cone_lines, plane_lines))
-        return [[segments, tr.ones(len(segments)), ['dimgray'] * len(segments)]]
+        return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
+
+
+class ParallelGeom(ViewGeom):
+    """Rectangular parallel beam sensor
+
+    Args:
+        shape (tuple[int]): detector shape (npix_x, npix_y)
+        pos (tuple[float]): XYZ position of detector center
+        lookdir (tuple[float]): detector pointing direction
+        updir (tuple[float]): direction of detector +Y
+        size (tuple[float]): size of detector in distance units (width, height)
+    """
+
+    def __init__(self, shape, pos, lookdir=None, updir=None, size=(1, 1)):
+        pos = tr.asarray(pos, dtype=FTYPE)
+        if lookdir is None:
+            lookdir = -pos
+        else:
+            lookdir = tr.asarray(lookdir, dtype=FTYPE)
+        if updir is None:
+            updir = tr.cross(lookdir, tr.asarray((0, 0, 1), dtype=FTYPE))
+        else:
+            updir = tr.asarray(updir, dtype=FTYPE)
+        lookdir /= tr.linalg.norm(lookdir, axis=-1)
+        updir /= tr.linalg.norm(updir, axis=-1)
+
+
+        u = tr.cross(lookdir, updir)
+        v = updir
+
+        # handle case with single LOS
+        ulim = size[0]/2 if shape[0] > 1 else 0
+        vlim = size[1]/2 if shape[1] > 1 else 0
+        self._u_arr = u[None, None, :] * tr.linspace(ulim, -ulim, shape[0])[:, None, None]
+        self._v_arr = v[None, None, :] * tr.linspace(-vlim, vlim, shape[1])[None, :, None]
+
+        self.shape = shape
+        self.pos = pos
+        self.lookdir = lookdir
+        self.updir = updir
+        self.size = size
+
+    @property
+    def rays(self):
+        """Ray unit vectors (1, 1, 3)"""
+        return self.lookdir[None, None, :]
+
+    @property
+    def ray_starts(self):
+        """Start position of each ray. Shape (*shape, 3)"""
+        return (self.pos[None, None, :] + self._u_arr + self._v_arr).reshape((*self.shape, 3))
+
+    def __repr__(self):
+        string = f"""ParallelGeom(
+            shape={self.shape}
+            pos={self.pos.tolist()},
+            lookdir={self.lookdir.tolist()},
+        )"""
+        from inspect import cleandoc
+        return cleandoc(string)
+
+    @property
+    def _wireframe(self):
+        """(segments, widths, colors): Wireframe for 3D visualization"""
+        # draw FOV corners
+
+        corners_start = self.ray_starts[(-1, -1, 0, 0), (0, -1, -1, 0)]
+        corners_end = (
+            corners_start + self.lookdir[None, :] * 2*tr.linalg.norm(self.pos)
+        )
+
+        cone_lines = tr.stack((corners_start, corners_end), dim=1)
+        plane_start_lines = tr.stack((corners_start, corners_start.roll(-1, dims=0)), dim=1)
+        plane_end_lines = tr.stack((corners_end, corners_end.roll(-1, dims=0)), dim=1)
+
+        segments = tr.concat((cone_lines, plane_start_lines, plane_end_lines))
+        return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]

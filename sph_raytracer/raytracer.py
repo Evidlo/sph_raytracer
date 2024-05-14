@@ -668,6 +668,7 @@ class Operator:
         Returns:
             line_integrations (tensor): integrated lines of sight of shape `geom.shape`
         """
+        r, e, a = self.regs
         # if dynamic volume density:
         if density.ndim == 4:
             if self._flatten:
@@ -675,15 +676,13 @@ class Operator:
             if self.dynamic:
                 t = tr.arange(len(density))[:, None, None, None]
                 # result = density[(t, *self.regs)]
-                print('d:', density.shape, 'i:', t.shape, self.regs[0].shape)
-                result = density[t, self.regs[0], self.regs[1], self.regs[2]]
+                result = density[t, r, e, a]
                 result *= self.lens
                 result = result.sum(axis=-1)
                 return result
                 # return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
                 # NOTE: this is a flattened form of the above which uses less memory
             else:
-                r, e, a = self.regs
                 return (density[:, r, e, a] * self.lens).sum(axis=-1)
         else:
             if self._flatten:
@@ -692,7 +691,7 @@ class Operator:
                 result_squeezed = result_squeezed.view(self.orig_shape).sum(axis=-1)
                 return result_squeezed
             else:
-                return (density[self.regs] * self.lens).sum(axis=-1)
+                return (density[r, e, a] * self.lens).sum(axis=-1)
 
     def __repr__(self):
         if self.dynamic:
