@@ -374,7 +374,7 @@ class ConeRectGeom(ViewGeom):
         else:
             lookdir = tr.asarray(lookdir, dtype=FTYPE)
         if updir is None:
-            updir = tr.cross(lookdir, tr.asarray((0, 0, 1), dtype=FTYPE))
+            updir = tr.cross(lookdir, tr.asarray((0, 0, 1), dtype=FTYPE), dim=-1)
         else:
             updir = tr.asarray(updir, dtype=FTYPE)
         fov = tr.asarray(fov, dtype=FTYPE)
@@ -390,7 +390,7 @@ class ConeRectGeom(ViewGeom):
     @property
     def rays(self):
         """Ray unit vectors (*shape, 3)"""
-        u = tr.cross(self.lookdir, self.updir)
+        u = tr.cross(self.lookdir, self.updir, dim=-1)
         v = self.updir
 
         # handle case with single LOS
@@ -462,7 +462,7 @@ class ConeCircGeom(ConeRectGeom):
     @property
     def rays(self):
         """Ray unit vectors. Shape (*shape, 3)"""
-        u = tr.cross(self.lookdir, self.updir)
+        u = tr.cross(self.lookdir, self.updir, dim=-1)
         v = self.updir
 
         rays = (
@@ -508,14 +508,14 @@ class ParallelGeom(ViewGeom):
         else:
             lookdir = tr.asarray(lookdir, dtype=FTYPE)
         if updir is None:
-            updir = tr.cross(lookdir, tr.asarray((0, 0, 1), dtype=FTYPE))
+            updir = tr.cross(lookdir, tr.asarray((0, 0, 1), dtype=FTYPE), dim=-1)
         else:
             updir = tr.asarray(updir, dtype=FTYPE)
         lookdir /= tr.linalg.norm(lookdir, axis=-1)
         updir /= tr.linalg.norm(updir, axis=-1)
 
 
-        u = tr.cross(lookdir, updir)
+        u = tr.cross(lookdir, updir, dim=-1)
         v = updir
 
         # handle case with single LOS

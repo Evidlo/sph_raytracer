@@ -387,7 +387,8 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
                 tr.zeros_like(points[..., 0]),
             ),
             axis=-1
-        )
+        ),
+        dim=-1
     )
     # points_normal /= tr.linalg.norm(points_normal, dim=-1)[..., na]
     # check whether crossing of plane is positive or negative
@@ -474,7 +475,7 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     inds = inds.repeat(*rshape, 1)
     # compute region index - check whether Z component of cross product is negative
 
-    cross = tr.cross(planes[na_rays + (Ellipsis, Ellipsis)], rays[..., na, :])[..., -1]
+    cross = tr.cross(planes[na_rays + (Ellipsis, Ellipsis)], rays[..., na, :], dim=-1)[..., -1]
     # ray is parallel to plane
     # FIXME: wrap up into nice isclose func
     is_parallel = tr.isclose(cross, zero, atol=tr.finfo(cross.dtype).resolution)
