@@ -120,8 +120,8 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
                 fov = geom.fov
             else:
                 fov = 1
-            r_lin = np.linspace(0, fov/2, images.shape[-2])
-            theta_lin = np.linspace(0, 2*np.pi, images.shape[-1])
+            r_lin = np.linspace(0, fov/2, images.shape[-2] + 1)
+            theta_lin = np.linspace(0, 2*np.pi, images.shape[-1] + 1)
             # realign polar plot up direction
             ax.set_theta_zero_location('N')
             theta, r = np.meshgrid(theta_lin, r_lin)
@@ -203,7 +203,9 @@ def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
     # rotate volume instead of creating many views
     offsets = tr.div(tr.arange(positions) * grid.shape.a, positions, rounding_mode='floor')
 
-    geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], 0, 1), fov=(30, 30))
+    # offset view by 1/2 azimuth voxel to avoid visual artifacts
+    offset = tr.tan(tr.tensor(2*tr.pi / grid.shape.a / 2)) * 4 * grid.size.r[1]
+    geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], offset, 1 * grid.size.r[1]), fov=(30, 30))
     # FIXME: flatten this too?
     op = Operator(grid, geom, _flatten=False)
 
