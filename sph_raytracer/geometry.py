@@ -235,8 +235,9 @@ class ViewGeom:
         ray_ends = (
             self.ray_starts +
             self.rays * 2 * tr.linalg.norm(self.ray_starts, dim=-1)[..., None]
-        )
-        segments = tr.stack((self.ray_starts.reshape(-1, 3), ray_ends.reshape(-1, 3)), dim=1)
+        ).reshape(-1, 3)
+        ray_starts = self.ray_starts.reshape(-1, 3).broadcast_to(ray_ends.shape)
+        segments = tr.stack((ray_starts, ray_ends), dim=1)
 
         return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
 
