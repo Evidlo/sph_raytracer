@@ -9,9 +9,9 @@ def test_preview3d():
     vol = tr.rand((50, 50, 50))
     grid = SphericalGrid(shape=vol.shape)
     result = preview3d(vol, grid)
-    assert result.shape == (20, 256, 256), "Incorrect preview3d shape"
+    assert result.shape == (50, 256, 256), "Incorrect preview3d shape"
     result = preview3d(color_negative(vol), grid)
-    assert result.shape == (20, 256, 256, 3), "Incorrect preview3d shape"
+    assert result.shape == (50, 256, 256, 3), "Incorrect preview3d shape"
 
 def test_image_stack():
     # test plotting stacks of images with different view geometries

@@ -50,9 +50,8 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         losses (dict[list[float]]): loss for each loss function at every iteration
     """
 
-    # FIXME: why does forward need a grid again?
-    # if f.grid != model.grid:
-    #     raise ValueError("f and model must have same grid")
+    if f.grid != model.grid:
+        raise ValueError("f and model must have same grid")
 
     if y is not None:
         y.requires_grad_()
@@ -62,7 +61,7 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
             model.coeffs_shape,
             requires_grad=True,
             # FIXME: why were we using f.device here?
-            device=model.device,
+            device=f.device,
             dtype=t.float64
         )
 
