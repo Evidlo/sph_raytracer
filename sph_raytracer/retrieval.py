@@ -50,8 +50,9 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         losses (dict[list[float]]): loss for each loss function at every iteration
     """
 
-    if f.grid != model.grid:
-        raise ValueError("f and model must have same grid")
+    # FIXME: why does forward need a grid again?
+    # if f.grid != model.grid:
+    #     raise ValueError("f and model must have same grid")
 
     if y is not None:
         y.requires_grad_()
@@ -60,7 +61,8 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         coeffs = t.ones(
             model.coeffs_shape,
             requires_grad=True,
-            device=f.device,
+            # FIXME: why were we using f.device here?
+            device=model.device,
             dtype=t.float64
         )
 
@@ -77,18 +79,20 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
 
             density = model(coeffs)
 
-            fidelity = regularizer = 0
+            fidelity = regularizer = oracle = 0
             for loss_fn in loss_fns:
                 loss = loss_fn(f, y, density, coeffs)
                 if loss_fn.use_grad:
                     if loss_fn.fidelity:
                         fidelity += loss
+                    elif loss_fn.oracle:
+                        oracle += loss
                     else:
                         regularizer += loss
                 # log the loss
                 losses[loss_fn].append(detach_loss(loss))
 
-            pbar.set_description(f'F:{fidelity:.1e} R:{regularizer:.1e}')
+            pbar.set_description(f'F:{fidelity:.1e} R:{regularizer:.1e} O:{oracle:.1e}')
 
             tot_loss = fidelity + regularizer
             # save the reconstruction with the lowest loss
