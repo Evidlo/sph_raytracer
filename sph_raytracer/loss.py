@@ -23,6 +23,7 @@ class Loss:
         volume_mask (tensor): voxels to mask out when computing loss
         lam (float): loss function scaling
         fidelity (bool): whether this is the fidelity term (for plotting/display purposes)
+        oracle (bool): whether this is an oracle loss function (for plotting/display purposes)
         use_grad (bool): whether this loss function's gradient needs to be used in optimization
 
     Usage:
@@ -38,6 +39,7 @@ class Loss:
     volume_mask: t.Tensor = field(kw_only=True, default=1)
     lam: float = field(kw_only=True, default=1)
     fidelity: bool = field(kw_only=True, default=False)
+    oracle: bool = field(kw_only=True, default=False)
     use_grad: bool = field(kw_only=True, default=True)
 
     def compute(self, f, y, d, c):
@@ -93,7 +95,8 @@ class Loss:
 class SquareLoss(Loss):
     """Standard mean L2 loss"""
 
-    fidelity: bool = True
+    fidelity = True
+    oracle = False
 
     def compute(self, f, y, d, c):
         """"""
@@ -106,6 +109,7 @@ class SquareRelLoss(Loss):
     """Loss as mean percent error"""
 
     fidelity = True
+    oracle = False
 
     def compute(self, f, y, d, c):
         """"""

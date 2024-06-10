@@ -172,20 +172,43 @@ def color_negative(x):
     return tr.stack((pos, neg, tr.zeros(pos.shape, device=x.device)), axis=-1)
 
 
-def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
+def sph2cart(rea):
+    """Convert spherical coordinates to cartesian coordinates
+
+    Args:
+        spherical (tuple): spherical coordinates (radius, elevation, azimuth),
+            where elevation is measured from Z-axis in radians [0, ℼ] and
+            azimuth is measured from X-axis in radians [-ℼ, ℼ]
+
+    Returns:
+        cartesian (tuple): cartesian coordinates (x, y, z)
+    """
+    r, e, a = np.moveaxis(rea, -1, 0)
+
+    xyz = np.empty_like(rea)
+
+    pre_selector = ((slice(None),) * xyz.ndim)[:-1]
+
+    xyz[(*pre_selector, 0)] = r * np.sin(e) * np.cos(a)
+    xyz[(*pre_selector, 1)] = r * np.sin(e) * np.sin(a)
+    xyz[(*pre_selector, 2)] = r * np.cos(e)
+
+    return xyz
+
+
+def preview3d(volume, grid, shape=(256, 256), device='cpu'):
     """Generate 3D animation of a static volume by making circular orbit around object
 
     Args:
         volume (tensor): volume to preview of shape (width, height, depth) or
             (width, height, depth, num_channels) for multi-channel measurement
         grid (SphericalGrid): grid where volume is defined
-        positions (int): number of positions in orbit
         shape (tuple[int]): shape of output images
 
     Returns:
         tensor: stack of images containing rotating preview of volume with shape
-            (positions, *shape) if volume is single channel, or
-            (positions, *shape, num_channels) if multiple channels
+            (grid.shape.a, *shape) if volume is single channel, or
+            (grid.shape.a, *shape, num_channels) if multiple channels
 
     Usage
     """
@@ -201,17 +224,19 @@ def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
     #     raise ValueError(f"Invalid shape for volume: {tuple(volume.shape)}")
 
     # rotate volume instead of creating many views
-    offsets = tr.div(tr.arange(positions) * grid.shape.a, positions, rounding_mode='floor')
+    # offsets = tr.div(tr.arange(positions) * grid.shape.a, positions, rounding_mode='floor')
+    offsets = tr.arange(grid.shape.a)
 
     # offset view by 1/2 azimuth voxel to avoid visual artifacts
-    offset = tr.tan(tr.tensor(2*tr.pi / grid.shape.a / 2)) * 4 * grid.size.r[1]
-    geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], offset, 1 * grid.size.r[1]), fov=(30, 30))
+    pos = sph2cart((4 * grid.size.r[1], np.deg2rad(60), 0.125 * 2 * np.pi / grid.shape.a))
+    geom = ConeRectGeom(shape, pos=pos, fov=(30, 30))
+    # geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], halfaz, 1 * grid.size.r[1]), fov=(30, 30))
     # FIXME: flatten this too?
     op = Operator(grid, geom, _flatten=False)
 
     # if multiple channels, process each separately
     if volume.ndim == 4:
-        rotvol = tr.empty((positions, *grid.shape, 3))
+        rotvol = tr.empty((grid.shape.a, *grid.shape, 3))
         for i, offset in enumerate(offsets):
             rotvol[i] = tr.roll(volume, (0, 0, int(offset), 0), dims=(0, 1, 2, 3))
         results = []
@@ -219,7 +244,7 @@ def preview3d(volume, grid, positions=20, shape=(256, 256), device='cpu'):
             results.append(op(chan))
         return tr.stack(results, axis=-1)
     else:
-        rotvol = tr.empty((positions, *grid.shape))
+        rotvol = tr.empty((len(offsets), *grid.shape))
         for i, offset in enumerate(offsets):
             rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
         return op(rotvol)
