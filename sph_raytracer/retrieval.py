@@ -4,6 +4,7 @@ This module provides methods for performing tomographic retrievals from a set of
 """
 
 import torch as t
+import math
 from tqdm import tqdm
 from .loss import SquareLoss
 
@@ -22,7 +23,7 @@ def detach_loss(loss):
 
 def gd(f, y, model, coeffs=None, num_iterations=100,
        loss_fns=[SquareLoss()], optim=t.optim.Adam,
-       progress_bar=True, **kwargs
+       progress_bar=True, device=None, **kwargs
        ):
     """Gradient descent to minimize loss function.  Instantiates and optimizes a set of coefficients
     for the given model with respect to provided loss functions
@@ -38,10 +39,13 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         model (science.model.Model): initialized model
         coeffs (tensor): initial value of coeffs before optimizing.
             should have `requires_grad=True`.  defaults to `t.ones(model.coeffs_shape)`
+        num_iterations (int): number of gradient descent iterations
         loss_fns (list[science.Loss]): custom loss functions which
             accept (f, y, density, coeffs) as args.  Losses are summed
-        num_iterations (int): number of gradient descent iterations
         optim (pytorch Optimizer): optimizer.  optional.  defaults to 'Adam'
+        progress_bar (bool): show iteration count on tqdm progress bar
+        device (None, str, or torch.device): optional device to use for coefficients.
+            Otherwise `f.device` is used
         **kwargs (dict): optional optimizer arguments
 
     Returns:
@@ -50,7 +54,7 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         losses (dict[list[float]]): loss for each loss function at every iteration
     """
 
-    if f.grid != model.grid:
+    if hasattr(f, 'grid') and f.grid != model.grid:
         raise ValueError("f and model must have same grid")
 
     if y is not None:
@@ -60,8 +64,7 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         coeffs = t.ones(
             model.coeffs_shape,
             requires_grad=True,
-            # FIXME: why were we using f.device here?
-            device=f.device,
+            device=device or f.device,
             dtype=t.float64
         )
 
@@ -72,26 +75,27 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     # initialize empty list for logging loss values each iteration
     losses = {loss_fn: [] for loss_fn in loss_fns}
     # perform requested number of iterations
+    oracle = 0
     try:
         for _ in (pbar := tqdm(range(num_iterations), disable=not progress_bar)):
             optim.zero_grad()
 
             density = model(coeffs)
 
-            fidelity = regularizer = oracle = 0
+            fidelity = regularizer = 0
             for loss_fn in loss_fns:
                 loss = loss_fn(f, y, density, coeffs)
                 if loss_fn.use_grad:
                     if loss_fn.fidelity:
                         fidelity += loss
-                    elif loss_fn.oracle:
-                        oracle += loss
                     else:
                         regularizer += loss
+                if loss_fn.oracle and not math.isnan(loss):
+                    oracle = loss
                 # log the loss
                 losses[loss_fn].append(detach_loss(loss))
 
-            pbar.set_description(f'F:{fidelity:.1e} R:{regularizer:.1e} O:{oracle:.1e}')
+            pbar.set_description(f'F:{fidelity:.1e} R:{regularizer:.1e} O:{oracle*100:.0f}')
 
             tot_loss = fidelity + regularizer
             # save the reconstruction with the lowest loss
