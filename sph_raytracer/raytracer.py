@@ -245,6 +245,9 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
 
     dotproduct = lambda a, b: tr.einsum('...j,...j->...', a, b)
 
+    # I try to use the same variables as given in the link above, with the exception
+    # of `d_`, which was already taken
+
     tc = dotproduct(-xs, rays) # (*num_rays)
     d = tr.sqrt(dotproduct(xs, xs) - tc**2) # (*num_rays)
     # NOTE: run out of memory when doing below for 512x512, 50obs
@@ -717,6 +720,15 @@ class Operator:
             ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
         self.grid.plot(ax)
+
+        # draw path
+        if (pos := self.geom.pos) is not None:
+            lc = Line3DCollection([])
+            segments = tr.stack((pos[:-1], pos[1:]))
+            lc.set_segments(segments)
+            lc.set_linewidth(tr.ones(len(segments)))
+            lc.set_colors(['gray'] * len(segments))
+            ax.add_collection(lc)
 
         wireframe = self.geom._wireframe
 

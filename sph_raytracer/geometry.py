@@ -312,6 +312,13 @@ class ViewGeomCollection(ViewGeom):
         return tr.concat(tuple(g.ray_starts[None, ...] for g in self.geoms))
 
     @property
+    def pos(self):
+        if all(hasattr(g, 'pos') for g in self.geoms):
+            return tr.concat(tuple(g.pos[None, ...] for g in self.geoms))
+        else:
+            return None
+
+    @property
     def _wireframe(self):
         """(segments, widths, colors): Wireframe for 3D visualization"""
         return sum([g._wireframe for g in self.geoms], [])
@@ -320,7 +327,7 @@ class ViewGeomCollection(ViewGeom):
         """Generate Matplotlib wireframe plot for this object
 
         Returns:
-            matplotlib Axes
+            matplotlib Animation
         """
         import matplotlib.pyplot as plt
         from matplotlib import animation
@@ -330,11 +337,20 @@ class ViewGeomCollection(ViewGeom):
             fig = plt.figure(figsize=(3, 3))
             ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
-        wireframe = self._wireframe
+        # draw path
+        if (pos := self.pos) is not None:
+            lc = Line3DCollection([])
+            segments = tr.stack((pos[:-1], pos[1:]))
+            lc.set_segments(segments)
+            lc.set_linewidth(tr.ones(len(segments)))
+            lc.set_colors(['gray'] * len(segments))
+            ax.add_collection(lc)
 
+        wireframe = self._wireframe
         lc = Line3DCollection([])
         ax.add_collection(lc)
 
+        # update FOV wireframe on each frame
         def update(num):
             segments, widths, colors = wireframe[num]
             lc.set_segments(segments)
