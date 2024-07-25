@@ -136,11 +136,12 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
                 extent = None
             return ax.imshow(img, extent=extent, **kwargs)
 
-    vmin, vmax = images.min(), images.max()
+    if not {'vmin', 'vmax'} <= kwargs.keys():
+        kwargs['vmin'], kwargs['vmax'] = images.min(), images.max()
     if images.ndim == 3:
         # use same ViewGeom for all images if a ViewGeomCollection not provided
         geom = geom if isinstance(geom, ViewGeomCollection) else repeat(geom)
-        artists = [[imshow(im, g, animated=True, vmin=vmin, vmax=vmax, **kwargs)] for im, g in zip(images, geom)]
+        artists = [[imshow(im, g, animated=True, **kwargs)] for im, g in zip(images, geom)]
         result = animation.ArtistAnimation(ax.figure, artists, interval=200)
     elif images.ndim == 2:
         artists = [[imshow(images, geom, **kwargs)]]
