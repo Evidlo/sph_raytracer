@@ -9,12 +9,8 @@ Weights are stored internally in the `lam` parameter, which the user may set by 
 initialized loss object with a float or by providing a `lam` kwarg on initialization.
 """
 
-from dataclasses import dataclass, field
 import torch as t
 
-
-
-@dataclass(unsafe_hash=True)
 class Loss:
     """Loss function for tomographic retrieval
 
@@ -30,17 +26,18 @@ class Loss:
         gd(..., losses=[5 * MyLoss(), 3 * MyLoss2()], ...)
     """
 
-    # projection_mask: t.Tensor = 1
-    # volume_mask: t.Tensor = 1
-    # lam: float = 1
-    # fidelity: bool = False
-    # use_grad: bool = True
-    projection_mask: t.Tensor = field(kw_only=True, default=1)
-    volume_mask: t.Tensor = field(kw_only=True, default=1)
-    lam: float = field(kw_only=True, default=1)
-    fidelity: bool = field(kw_only=True, default=False)
-    oracle: bool = field(kw_only=True, default=False)
-    use_grad: bool = field(kw_only=True, default=True)
+    def __init__(
+            self, *args, projection_mask=1, volume_mask=1, lam=1, fidelity=False,
+            oracle=False, use_grad=True, **kwargs
+        ):
+        self.projection_mask = projection_mask
+        self.volume_mask = volume_mask
+        self.lam = lam
+        self.fidelity = fidelity
+        self.oracle = oracle
+        self.use_grad = use_grad
+
+        self.__post_init__(*args, **kwargs)
 
     def compute(self, f, y, d, c):
         """Compute loss
@@ -91,12 +88,11 @@ class Loss:
         # return f'{type(self).__name__}'
 
 
-@dataclass(unsafe_hash=True, repr=False)
 class SquareLoss(Loss):
     """Standard mean L2 loss"""
 
-    fidelity = True
-    oracle = False
+    def __post_init__(self, *args, **kwargs):
+        self.fidelity = True
 
     def compute(self, f, y, d, c):
         """"""
@@ -104,12 +100,11 @@ class SquareLoss(Loss):
         return result
 
 
-@dataclass(unsafe_hash=True, repr=False)
 class SquareRelLoss(Loss):
     """Loss as mean percent error"""
 
-    fidelity = True
-    oracle = False
+    def __post_init__(self, *args, **kwargs):
+        self.fidelity = True
 
     def compute(self, f, y, d, c):
         """"""
@@ -125,29 +120,30 @@ class SquareRelLoss(Loss):
         return t.mean((self.projection_mask * rel_err)**2)
 
 
-@dataclass(unsafe_hash=True, repr=False)
 class CheaterLoss(Loss):
     """L2 loss directly over density ground truth"""
 
-    def __init__(self, density_truth, **kwargs):
-        self.density_truth = density_truth
+    def __post_init__(self, density_truth, *args, **kwargs):
 
-        super().__init__(**kwargs)
+        self.density_truth = density_truth
+        self.oracle = True
 
     def compute(self, f, y, d, c):
         """"""
         return t.mean(self.volume_mask * (d - self.density_truth)**2)
 
 
-@dataclass(unsafe_hash=True, repr=False)
 class NegRegularizer(Loss):
     """Mean of negative voxels"""
+
+    def __post_init__(self, *args, **kwargs):
+        pass
+
     def compute(self, f, y, d, c):
         """"""
         return t.mean(t.abs(self.volume_mask * d.clip(max=0)))
 
 
-@dataclass(unsafe_hash=True, repr=False)
 class NegSumRegularizer(Loss):
     """Sum of negative voxels"""
     def compute(self, f, y, d, c):
