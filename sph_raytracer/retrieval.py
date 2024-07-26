@@ -75,29 +75,29 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     # initialize empty list for logging loss values each iteration
     losses = {loss_fn: [] for loss_fn in loss_fns}
     # perform requested number of iterations
-    oracle = 0
+    o_stat = 0
     try:
         for _ in (pbar := tqdm(range(num_iterations), disable=not progress_bar)):
             optim.zero_grad()
 
             density = model(coeffs)
 
-            fidelity = regularizer = 0
+            tot_loss = f_stat = r_stat = 0
             for loss_fn in loss_fns:
                 loss = loss_fn(f, y, density, coeffs)
                 if loss_fn.use_grad:
-                    if loss_fn.fidelity:
-                        fidelity += loss
-                    else:
-                        regularizer += loss
-                if loss_fn.oracle and not math.isnan(loss):
-                    oracle = loss
+                    tot_loss += loss
+                if loss_fn.kind == 'fidelity':
+                    f_stat += loss
+                elif loss_fn.kind == 'regularizer':
+                    r_stat += loss
+                elif loss_fn.kind == 'oracle' and not math.isnan(loss):
+                    o_stat = loss
                 # log the loss
                 losses[loss_fn].append(detach_loss(loss))
 
-            pbar.set_description(f'F:{fidelity:.1e} R:{regularizer:.1e} O:{oracle*100:.0f}')
+            pbar.set_description(f'F:{f_stat:.1e} R:{r_stat:.1e} O:{o_stat*100:.0f}')
 
-            tot_loss = fidelity + regularizer
             # save the reconstruction with the lowest loss
             if tot_loss < best_loss:
                 best_coeffs = coeffs

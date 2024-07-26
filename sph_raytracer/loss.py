@@ -18,26 +18,22 @@ class Loss:
         projection_mask (tensor): column densities to mask out when computing loss
         volume_mask (tensor): voxels to mask out when computing loss
         lam (float): loss function scaling
-        fidelity (bool): whether this is the fidelity term (for plotting/display purposes)
-        oracle (bool): whether this is an oracle loss function (for plotting/display purposes)
         use_grad (bool): whether this loss function's gradient needs to be used in optimization
 
     Usage:
         gd(..., losses=[5 * MyLoss(), 3 * MyLoss2()], ...)
     """
 
+    kind = 'regularizer'
+
     def __init__(
-            self, *args, projection_mask=1, volume_mask=1, lam=1, fidelity=False,
-            oracle=False, use_grad=True, **kwargs
+            self, *args, projection_mask=1, volume_mask=1, lam=1,
+            use_grad=True, **kwargs
         ):
         self.projection_mask = projection_mask
         self.volume_mask = volume_mask
         self.lam = lam
-        self.fidelity = fidelity
-        self.oracle = oracle
         self.use_grad = use_grad
-
-        self.__post_init__(*args, **kwargs)
 
     def compute(self, f, y, d, c):
         """Compute loss
@@ -91,8 +87,7 @@ class Loss:
 class SquareLoss(Loss):
     """Standard mean L2 loss"""
 
-    def __post_init__(self, *args, **kwargs):
-        self.fidelity = True
+    kind = 'fidelity'
 
     def compute(self, f, y, d, c):
         """"""
@@ -103,8 +98,7 @@ class SquareLoss(Loss):
 class SquareRelLoss(Loss):
     """Loss as mean percent error"""
 
-    def __post_init__(self, *args, **kwargs):
-        self.fidelity = True
+    kind = 'fidelity'
 
     def compute(self, f, y, d, c):
         """"""
@@ -123,10 +117,19 @@ class SquareRelLoss(Loss):
 class CheaterLoss(Loss):
     """L2 loss directly over density ground truth"""
 
-    def __post_init__(self, density_truth, *args, **kwargs):
+    kind = 'oracle'
+
+    def __init__(self, density_truth, *args, **kwargs):
+        """Setup loss
+
+        Args:
+            density_truth (tensor): ground truth density
+            *args: position args passed to Loss
+            **kwargs: keyword args passed to Loss
+        """
 
         self.density_truth = density_truth
-        self.oracle = True
+        super().__init__(**kwargs)
 
     def compute(self, f, y, d, c):
         """"""
@@ -135,9 +138,6 @@ class CheaterLoss(Loss):
 
 class NegRegularizer(Loss):
     """Mean of negative voxels"""
-
-    def __post_init__(self, *args, **kwargs):
-        pass
 
     def compute(self, f, y, d, c):
         """"""
