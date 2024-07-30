@@ -38,7 +38,7 @@ class SphericalGrid:
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
         rs_b (ndarray, optional): manually specify radial shell boundaries.
-        phis_b (ndarray, optional): manually specify elevation cone boundaries
+        e_b (ndarray, optional): manually specify elevation cone boundaries
             in radians [0,π] (measured from +Z axis).
         a_b (ndarray, optional): manually specify azimuth plane boundaries
             in radians [-π,π] (measured from +X axis)
@@ -46,10 +46,10 @@ class SphericalGrid:
     Attributes:
         shape (tuple[int])
         rs (tensor[float]): radial bin centers
-        phis (tensor[float]): elevation bin centers
+        e (tensor[float]): elevation bin centers
         a (tensor[float]): azimuth bin centers
         rs_b (tensor[float])
-        phis_b (tensor[float])
+        e_b (tensor[float])
         a_b (tensor[float])
         size: (tuple[tuple[float]])
 
@@ -57,7 +57,7 @@ class SphericalGrid:
         SphericalGrid(((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), (50, 50, 50))
         SphericalGrid(
             rs=tr.linspace(3, 25, 51),
-            phis=tr.linspace(0, tr.pi, 51),
+            e=tr.linspace(0, tr.pi, 51),
             a_b=tr.linspace(-tr.pi, tr.pi, 51)
         )
 
@@ -66,7 +66,7 @@ class SphericalGrid:
 
              .....
 
-          Radial (r)              Elevation (phi)           Azimuth (a)
+          Radial (r)              Elevation (e)           Azimuth (a)
           ----------              ---------------           ---------------
                                          Z↑                        Y↑
    ..........* 2 *...........
@@ -93,18 +93,18 @@ class SphericalGrid:
 
     def __init__(
             self, size_r=(0, 1), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi), shape=(50, 50, 50), spacing='lin',
-            rs_b=None, phis_b=None, a_b=None):
+            rs_b=None, e_b=None, a_b=None):
         size = Size(size_r, size_e, size_a)
         shape = Shape(*shape)
 
         # infer shape and size if grid is manually specified
-        if (rs_b is not None) and (phis_b is not None) and (a_b is not None):
-            shape = Shape(len(rs_b) - 1, len(phis_b) - 1, len(a_b) - 1)
-            size = Size((min(rs_b), max(rs_b)), (min(phis_b), max(phis_b)), (min(a_b), max(a_b)))
+        if (rs_b is not None) and (e_b is not None) and (a_b is not None):
+            shape = Shape(len(rs_b) - 1, len(e_b) - 1, len(a_b) - 1)
+            size = Size((min(rs_b), max(rs_b)), (min(e_b), max(e_b)), (min(a_b), max(a_b)))
 
             # enforce float64 dtype
-            rs_b, phis_b, a_b = [tr.asarray(x, dtype=tr.float64) for x in (rs_b, phis_b, a_b)]
-            rs, phis, a = [(x[1:] + x[:-1]) / 2 for x in (rs_b, phis_b, a_b)]
+            rs_b, e_b, a_b = [tr.asarray(x, dtype=tr.float64) for x in (rs_b, e_b, a_b)]
+            rs, e, a = [(x[1:] + x[:-1]) / 2 for x in (rs_b, e_b, a_b)]
 
         # otherwise compute grid
         elif (shape is not None) and (size is not None):
@@ -116,19 +116,19 @@ class SphericalGrid:
                 rs = (rs_b[1:] + rs_b[:-1]) / 2
             else:
                 raise ValueError("Invalid value for spacing")
-            phis_b = tr.linspace(size.e[0], size.e[1], shape.e + 1, dtype=tr.float64)
+            e_b = tr.linspace(size.e[0], size.e[1], shape.e + 1, dtype=tr.float64)
             a_b = tr.linspace(size.a[0], size.a[1], shape.a + 1, dtype=tr.float64)
-            phis = (phis_b[1:] + phis_b[:-1]) / 2
+            e = (e_b[1:] + e_b[:-1]) / 2
             a = (a_b[1:] + a_b[:-1]) / 2
 
         else:
-            raise ValueError("Must specify either shape or (rs, phis, a)")
+            raise ValueError("Must specify either shape or (rs, e, a)")
 
 
         self.size = size
         self.shape = shape
-        self.rs_b, self.phis_b, self.a_b = rs_b, phis_b, a_b
-        self.rs, self.phis, self.a = rs, phis, a
+        self.rs_b, self.e_b, self.a_b = rs_b, e_b, a_b
+        self.rs, self.e, self.a = rs, e, a
 
     def __repr__(self):
         s, sh = self.size, self.shape

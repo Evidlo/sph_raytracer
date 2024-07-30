@@ -70,7 +70,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevi
     # --- compute voxel indices for all rays and their distances ---
     r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _r_inds, _r_ns, _
-    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.phis_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
+    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.e_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _e_inds, _e_ns, _
     a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.a_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _a_inds, _a_ns, _
@@ -287,11 +287,11 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     return t, regions, points, inds, negative_crossing
 
 
-def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
+def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """Compute intersections of rays with elevation cones
 
     Args:
-        phis (tensor): Number of elevation cones
+        e (tensor): Number of elevation cones
             or cone elevations (radians)
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
@@ -317,12 +317,12 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
 
-    assert len(phis) - 1 < tr.iinfo(ispec['dtype']).max, "Too many phis!  Would cause overflow"
+    assert len(e) - 1 < tr.iinfo(ispec['dtype']).max, "Too many elevations!  Would cause overflow"
 
     zero = tr.tensor(0, **spec)
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
-    phis = tr.asarray(phis, **spec)
+    e = tr.asarray(e, **spec)
     rshape = rays.shape[:-1] # number and shape of rays
     na_rays = (na,) * len(rshape) # for creating single dimensions for ray shape
 
@@ -333,12 +333,12 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     v = tr.tensor((0, 0, 1), **spec)
 
     dotproduct = lambda a, b: tr.einsum('...j,...j->...', a, b)
-    a = rays[..., 2:]**2 - (tr.cos(phis)**2)[na_rays + (Ellipsis,)]
-    b = 2 * (rays[..., 2:] * xs[..., 2:] - dotproduct(rays, xs)[..., None] * (tr.cos(phis)**2)[na_rays + (Ellipsis,)])
-    c = xs[..., 2:]**2 - (tr.linalg.norm(xs, axis=-1)**2)[..., None] * (tr.cos(phis)**2)[na_rays + (Ellipsis,)]
+    a = rays[..., 2:]**2 - (tr.cos(e)**2)[na_rays + (Ellipsis,)]
+    b = 2 * (rays[..., 2:] * xs[..., 2:] - dotproduct(rays, xs)[..., None] * (tr.cos(e)**2)[na_rays + (Ellipsis,)])
+    c = xs[..., 2:]**2 - (tr.linalg.norm(xs, axis=-1)**2)[..., None] * (tr.cos(e)**2)[na_rays + (Ellipsis,)]
     a[isclose(a, zero)] = zero
 
-    # a = dotproduct(rays, v)[:, None] - (tr.cos(phis)**2)[None, :]
+    # a = dotproduct(rays, v)[:, None] - (tr.cos(e)**2)[None, :]
     # b = 2 * (dotproduct(rays, v) *)
 
     # ray not parallel to cone
@@ -352,29 +352,29 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # compute single or double intersection
     is_single = isclose(delta, zero)
     is_single = tr.logical_and(isclose(a, zero), tr.logical_not(isclose(b, zero)))
-    t_normal = tr.empty((*rshape, 2 * len(phis)), **spec)
-    t_normal[..., :len(phis)] = tr.where(is_single, -2*c / b, t1)
-    t_normal[..., len(phis):] = tr.where(is_single, float('inf'), t2)
+    t_normal = tr.empty((*rshape, 2 * len(e)), **spec)
+    t_normal[..., :len(e)] = tr.where(is_single, -2*c / b, t1)
+    t_normal[..., len(e):] = tr.where(is_single, float('inf'), t2)
     del t1, t2
 
     # --- ray parallel to cone ---
-    t_parallel = tr.empty((*rshape, 2 * len(phis)), **spec)
-    t_parallel[..., :len(phis)] = -c / b
-    t_parallel[..., len(phis):] = float('inf')
+    t_parallel = tr.empty((*rshape, 2 * len(e)), **spec)
+    t_parallel[..., :len(e)] = -c / b
+    t_parallel[..., len(e):] = float('inf')
 
     is_parallel = tr.full_like(t_normal, False, device=spec['device'], dtype=tr.bool)
-    is_parallel[..., :len(phis)] = tr.logical_and(isclose(a, zero), tr.logical_not(isclose(b, zero)))
-    is_parallel[..., len(phis):] = is_parallel[..., :len(phis)]
+    is_parallel[..., :len(e)] = tr.logical_and(isclose(a, zero), tr.logical_not(isclose(b, zero)))
+    is_parallel[..., len(e):] = is_parallel[..., :len(e)]
     t = tr.where(is_parallel, t_parallel, t_normal)
     # del t_normal, t_parallel, is_parallel
 
     # --- ray lies on cone ---
-    t[..., :len(phis)][(a==0) * (b==0) * (c==0)] = float('inf')
-    t[..., len(phis):][(a==0) * (b==0) * (c==0)] = float('inf')
-    # t[..., :len(phis)][(a==0) * (b==0) * (c==0)] = 0
-    # t[..., len(phis):][(a==0) * (b==0) * (c==0)] = 0
+    t[..., :len(e)][(a==0) * (b==0) * (c==0)] = float('inf')
+    t[..., len(e):][(a==0) * (b==0) * (c==0)] = float('inf')
+    # t[..., :len(e)][(a==0) * (b==0) * (c==0)] = 0
+    # t[..., len(e):][(a==0) * (b==0) * (c==0)] = 0
 
-    inds = tr.cat((tr.arange(len(phis), **ispec), tr.arange(len(phis), **ispec)))
+    inds = tr.cat((tr.arange(len(e), **ispec), tr.arange(len(e), **ispec)))
     inds = inds.repeat(*rshape, 1)
 
     points = rays[..., na, :] * t[..., :, na] + xs[..., na, :]
@@ -408,21 +408,21 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     regions[isclose(prod, zero)] = -2
 
     # filter out intersections with opposite shadow cone
-    phis_expanded = phis.repeat(2)
-    # cone_point_z = tr.cos(phis_expanded) * tr.linalg.norm(points, axis=-1)
+    e_expanded = e.repeat(2)
+    # cone_point_z = tr.cos(e_expanded) * tr.linalg.norm(points, axis=-1)
     # shadow = tr.logical_not(isclose(points[..., 2], cone_point_z))
-    cone_point_z_sign = tr.cos(phis_expanded) >= 0
+    cone_point_z_sign = tr.cos(e_expanded) >= 0
     shadow = tr.logical_not((points[..., 2] >= 0) == cone_point_z_sign)
-    # when phi==pi/2, sign is unreliable.  Coincidentally, shadow masking is not necessary
+    # when e==pi/2, sign is unreliable.  Coincidentally, shadow masking is not necessary
     # for this case
-    shadow[..., isclose(tr.tensor(tr.pi / 2, **spec), phis_expanded)] = False
+    shadow[..., isclose(tr.tensor(tr.pi / 2, **spec), e_expanded)] = False
 
 
     points[shadow] = float('inf')
     t[shadow] = float('inf')
 
     # mark region outside last cone as invalid
-    regions[regions == len(phis) - 1] = -1
+    regions[regions == len(e) - 1] = -1
     # set distance NaNs to infs
     t[t.isnan()] = float('inf')
 
@@ -580,8 +580,8 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     """
     spec = {'dtype': ftype, 'device': device}
 
-    rs_b, phis_b, a_b = (grid.rs_b, grid.phis_b, grid.a_b)
-    xs, rs_b, phis_b, a_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, phis_b, a_b))
+    rs_b, e_b, a_b = (grid.rs_b, grid.e_b, grid.a_b)
+    xs, rs_b, e_b, a_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, e_b, a_b))
     xs_sph = cart2sph(xs)
 
     # make contiguous to avoid pytorch searchsorted warnings
@@ -591,12 +591,12 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
 
     # find region where each ray starts
     r_reg = tr.searchsorted(rs_b, xs_r, right=True) - 1
-    e_reg = tr.searchsorted(phis_b, xs_e, right=True) - 1
+    e_reg = tr.searchsorted(e_b, xs_e, right=True) - 1
     a_reg = tr.searchsorted(a_b, xs_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
     r_reg = tr.where(xs_r == rs_b[-1], grid.shape[0] - 1, r_reg)
-    e_reg = tr.where(xs_e == phis_b[-1], grid.shape[1] - 1, e_reg)
+    e_reg = tr.where(xs_e == e_b[-1], grid.shape[1] - 1, e_reg)
     a_reg = tr.where(xs_a == a_b[-1], grid.shape[2] - 1, a_reg)
 
     # if ray starts in an invalid region, set the region index to -1

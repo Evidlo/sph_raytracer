@@ -54,12 +54,12 @@ def test_r():
 
 
 def test_e():
-    phis = tr.tensor([tr.pi/6, tr.pi/4])
+    e = tr.tensor([tr.pi/6, tr.pi/4])
 
     # ray intersects all cones once (negative crossing)
     xs = [(-1, 0, 0)]
     rays = [(0, 0, 1)]
-    e_t, e_region = e_torch(phis, xs, rays)[:2]
+    e_t, e_region = e_torch(e, xs, rays)[:2]
     assert check(e_t, [math.sqrt(3), 1, float('inf'), float('inf')])
     assert check(e_region, [-1, 0, -1, 0])
 
@@ -67,7 +67,7 @@ def test_e():
     d = 100
     xs = [(-d, 0, 1)]
     rays = [(1, 0, 0)]
-    e_t, e_region = e_torch(phis, xs, rays)[:2]
+    e_t, e_region = e_torch(e, xs, rays)[:2]
     inv3 = 1 / math.sqrt(3)
     assert check(e_t, [d - inv3, d - 1, d + inv3, d + 1])
     assert check(e_region, [-1, 0, 0, -1])
@@ -76,7 +76,7 @@ def test_e():
     d = 100
     xs = [(-d, 0, -1)]
     rays = [(1, 0, 0)]
-    e_t, e_region = e_torch(tr.pi - phis, xs, rays)[:2]
+    e_t, e_region = e_torch(tr.pi - e, xs, rays)[:2]
     inv3 = 1 / math.sqrt(3)
     assert check(e_t, [d - inv3, d - 1, d + inv3, d + 1])
     assert check(e_region, [0, -1, -1, 0])
@@ -84,7 +84,7 @@ def test_e():
     # ray through shadow cones
     xs = [(-1, 0, -1)]
     rays = [(1, 0, 0)]
-    e_t, e_region = e_torch(phis, xs, rays)[:2]
+    e_t, e_region = e_torch(e, xs, rays)[:2]
     assert check(e_t, 4 * [float('inf')])
     assert check(e_region, [0, -1, -1, 0])
 
@@ -113,13 +113,13 @@ def test_e():
     # ray through origin
     xs = [(-1, 0, 0)]
     rays = [(1, 0, 0)]
-    e_t, e_region = e_torch(phis, xs, rays)[:2]
+    e_t, e_region = e_torch(e, xs, rays)[:2]
     # assert check(e_t, [1, 1, float('inf'), float('inf')])
     assert check(e_t, [1, 1, 1, 1])
     # FIXME
     # assert check(e_region, [0, -1, -1, 0])
 
-    # ray through phi=0, phi=π cones
+    # ray through e=0, e=π cones
     xs = [(-1, 0, 0)]
     rays = [(1, 0, 0)]
     e_t, e_region = e_torch([0, tr.pi], xs, rays)[:2]
@@ -175,19 +175,19 @@ def test_a():
 
 def test_sphericalgrid():
     grid = SphericalGrid(shape=(10, 11, 12))
-    assert (len(grid.rs_b), len(grid.phis_b), len(grid.a_b)) == (11, 12, 13)
-    grid = SphericalGrid(rs_b=[1, 2], phis_b=[1, 2, 3], a_b=[1, 2, 3, 4])
+    assert (len(grid.rs_b), len(grid.e_b), len(grid.a_b)) == (11, 12, 13)
+    grid = SphericalGrid(rs_b=[1, 2], e_b=[1, 2, 3], a_b=[1, 2, 3, 4])
     assert grid.shape == (1, 2, 3)
     # check grid boundaries and centers
     def check_bounds(grid):
         assert len(grid.rs) == len(grid.rs_b) - 1
-        assert len(grid.phis) == len(grid.phis_b) - 1
+        assert len(grid.e) == len(grid.e_b) - 1
         assert len(grid.a) == len(grid.a_b) - 1
         assert all(grid.rs > grid.rs_b[:-1])
-        assert all(grid.phis > grid.phis_b[:-1])
+        assert all(grid.e > grid.e_b[:-1])
         assert all(grid.a > grid.a_b[:-1])
         assert all(grid.rs < grid.rs_b[1:])
-        assert all(grid.phis < grid.phis_b[1:])
+        assert all(grid.e < grid.e_b[1:])
         assert all(grid.a < grid.a_b[1:])
 
     check_bounds(grid)
