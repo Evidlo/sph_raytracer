@@ -72,7 +72,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevi
     if not debug: del _r_inds, _r_ns, _
     e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.phis_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _e_inds, _e_ns, _
-    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.thetas_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
+    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.a_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _a_inds, _a_ns, _
 
     # concatenate intersection distances/points from all geometry kinds
@@ -429,11 +429,11 @@ def e_torch(phis, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     return t, regions, points, inds, negative_crossing
 
 
-def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
+def a_torch(a_b, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """Compute intersections of rays with azimuth planes
 
     Args:
-        thetas (tensor): plane angles (radians)
+        a_b (tensor): plane angles (radians)
         xs (tuple): starting points of rays (num_rays, 3)
         rays (tuple): directions of rays (num_rays, 3)
         ftype (torch dtype): type specification for floats
@@ -456,17 +456,17 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
 
-    assert len(thetas) - 1 < tr.iinfo(ispec['dtype']).max, "Too many thetas!  Would cause overflow"
+    assert len(a_b) - 1 < tr.iinfo(ispec['dtype']).max, "Too many azimuths!  Would cause overflow"
 
     zero = tr.tensor(0, **spec)
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
-    thetas = tr.asarray(thetas, **spec)
+    a_b = tr.asarray(a_b, **spec)
     rshape = rays.shape[:-1] # number and shape of rays
     na_rays = (na,) * len(rshape) # for creating single dimensions for ray shape
 
-    planes = tr.stack((tr.cos(thetas), tr.sin(thetas), tr.zeros_like(thetas, **spec)), dim=-1)
-    plane_norms = tr.stack((-tr.sin(thetas), tr.cos(thetas), tr.zeros_like(thetas, **spec)), dim=-1)
+    planes = tr.stack((tr.cos(a_b), tr.sin(a_b), tr.zeros_like(a_b, **spec)), dim=-1)
+    plane_norms = tr.stack((-tr.sin(a_b), tr.cos(a_b), tr.zeros_like(a_b, **spec)), dim=-1)
 
     dotproduct = lambda a, b: tr.einsum('...bc,...jc->...b', a, b)
     # distance along ray
@@ -474,7 +474,7 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
         -dotproduct(plane_norms[na_rays + (Ellipsis, Ellipsis)], xs[..., na, :]) /
         dotproduct(plane_norms[na_rays + (Ellipsis, Ellipsis)], rays[..., na, :])
     )
-    inds = tr.arange(len(thetas), **ispec)
+    inds = tr.arange(len(a_b), **ispec)
     inds = inds.repeat(*rshape, 1)
     # compute region index - check whether Z component of cross product is negative
 
@@ -487,19 +487,19 @@ def a_torch(thetas, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     negative_crossing = (cross < 0).type(tr.int8)
     regions = inds - negative_crossing
 
-    # if thetas are full range, wrap around
-    if -thetas[0] == thetas[-1] == tr.pi:
-        regions = regions % (len(thetas) - 1)
+    # if azimuths are full range, wrap around
+    if -a_b[0] == a_b[-1] == tr.pi:
+        regions = regions % (len(a_b) - 1)
     else:
         # mark region outside last plane as invalid,
-        regions[regions == len(thetas) - 1] = -1
+        regions[regions == len(a_b) - 1] = -1
 
     # FIXME: can't handle case when ray goes directly through Z axis!
 
     # NOTE: run out of memory when doing below for rshape (50, 512, 512)
     # points = xs[..., na, :] + t[..., :, na] * rays[..., na, :]
     # this is the same as above but uses less memory
-    points = tr.empty((*rshape, len(thetas), 3), **spec)
+    points = tr.empty((*rshape, len(a_b), 3), **spec)
     points[...] = t[..., :, na]
     points[...] *= rays[..., na, :]
     points[...] += xs[..., na, :]
@@ -580,8 +580,8 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     """
     spec = {'dtype': ftype, 'device': device}
 
-    rs_b, phis_b, thetas_b = (grid.rs_b, grid.phis_b, grid.thetas_b)
-    xs, rs_b, phis_b, thetas_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, phis_b, thetas_b))
+    rs_b, phis_b, a_b = (grid.rs_b, grid.phis_b, grid.a_b)
+    xs, rs_b, phis_b, a_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, phis_b, a_b))
     xs_sph = cart2sph(xs)
 
     # make contiguous to avoid pytorch searchsorted warnings
@@ -592,12 +592,12 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     # find region where each ray starts
     r_reg = tr.searchsorted(rs_b, xs_r, right=True) - 1
     e_reg = tr.searchsorted(phis_b, xs_e, right=True) - 1
-    a_reg = tr.searchsorted(thetas_b, xs_a, right=True) - 1
+    a_reg = tr.searchsorted(a_b, xs_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
     r_reg = tr.where(xs_r == rs_b[-1], grid.shape[0] - 1, r_reg)
     e_reg = tr.where(xs_e == phis_b[-1], grid.shape[1] - 1, e_reg)
-    a_reg = tr.where(xs_a == thetas_b[-1], grid.shape[2] - 1, a_reg)
+    a_reg = tr.where(xs_a == a_b[-1], grid.shape[2] - 1, a_reg)
 
     # if ray starts in an invalid region, set the region index to -1
     r_reg[r_reg == grid.shape[0]] = -1
@@ -675,19 +675,16 @@ class Operator:
         r, e, a = self.regs
         # if dynamic volume density:
         if density.ndim == 4:
-            if self._flatten:
-                raise ValueError("_flatten=True not supported for dynamic case yet")
-            if self.dynamic:
-                t = tr.arange(len(density))[:, None, None, None]
-                # result = density[(t, *self.regs)]
-                result = density[t, r, e, a]
-                result *= self.lens
-                result = result.sum(axis=-1)
-                return result
-                # return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
-                # NOTE: this is a flattened form of the above which uses less memory
-            else:
-                return (density[:, r, e, a] * self.lens).sum(axis=-1)
+            t = tr.arange(len(density))[:, None, None, None]
+            result = density[t, r, e, a]
+            result *= self.lens
+            result = result.sum(axis=-1)
+            return result
+            # return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
+            # NOTE: this is a flattened form of the above which uses less memory
+
+            # else:
+            #     return (density[:, r, e, a] * self.lens).sum(axis=-1)
         else:
             if self._flatten:
                 result_squeezed = density.flatten()[self.regs]
@@ -731,9 +728,6 @@ class Operator:
             ax.add_collection(lc)
 
         wireframe = self.geom._wireframe
-
-        # segments, widths, colors = wireframe[0]
-        # lc = Line3DCollection(segments, linewidths=widths, colors=colors)
         lc = Line3DCollection([])
         ax.add_collection(lc)
 

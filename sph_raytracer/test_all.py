@@ -129,26 +129,26 @@ def test_e():
 
 
 def test_a():
-    thetas = [tr.pi/4, tr.pi/2]
+    a_b = [tr.pi/4, tr.pi/2]
 
     # ray intersects all planes once (negative crossing)
     xs = [(-1, 1, 0)]
     rays = [(1, 0, 0)]
-    a_t, a_region = a_torch(thetas, xs, rays)[:2]
+    a_t, a_region = a_torch(a_b, xs, rays)[:2]
     assert check(a_t, [2, 1])
     assert check(a_region, [-1, 0])
 
     # ray intersects all planes once (positive crossing)
     xs = [(-1, 1, 0)]
     rays = [(-1, 0, 0)]
-    a_t, a_region = a_torch(thetas, xs, rays)[:2]
+    a_t, a_region = a_torch(a_b, xs, rays)[:2]
     assert check(a_t, [-2, -1])
     assert check(a_region, [0, -1])
 
     # ray intersects no planes
     xs = [(-1, -1, 0)]
     rays = [(1, 0, 0)]
-    a_t, a_region = a_torch(thetas, xs, rays)[:2]
+    a_t, a_region = a_torch(a_b, xs, rays)[:2]
     assert check(a_t, [float('inf'), float('inf')])
 
     # ray parallel to plane
@@ -160,7 +160,7 @@ def test_a():
     # ray through origin
     xs = [(-1, 0, 0)]
     rays = [(1, 0, 0)]
-    a_t, a_region = a_torch(thetas, xs, rays)[:2]
+    a_t, a_region = a_torch(a_b, xs, rays)[:2]
     assert check(a_t, [1, 1])
     assert check(a_region, [-1, 0])
 
@@ -175,20 +175,20 @@ def test_a():
 
 def test_sphericalgrid():
     grid = SphericalGrid(shape=(10, 11, 12))
-    assert (len(grid.rs_b), len(grid.phis_b), len(grid.thetas_b)) == (11, 12, 13)
-    grid = SphericalGrid(rs_b=[1, 2], phis_b=[1, 2, 3], thetas_b=[1, 2, 3, 4])
+    assert (len(grid.rs_b), len(grid.phis_b), len(grid.a_b)) == (11, 12, 13)
+    grid = SphericalGrid(rs_b=[1, 2], phis_b=[1, 2, 3], a_b=[1, 2, 3, 4])
     assert grid.shape == (1, 2, 3)
     # check grid boundaries and centers
     def check_bounds(grid):
         assert len(grid.rs) == len(grid.rs_b) - 1
         assert len(grid.phis) == len(grid.phis_b) - 1
-        assert len(grid.thetas) == len(grid.thetas_b) - 1
+        assert len(grid.a) == len(grid.a_b) - 1
         assert all(grid.rs > grid.rs_b[:-1])
         assert all(grid.phis > grid.phis_b[:-1])
-        assert all(grid.thetas > grid.thetas_b[:-1])
+        assert all(grid.a > grid.a_b[:-1])
         assert all(grid.rs < grid.rs_b[1:])
         assert all(grid.phis < grid.phis_b[1:])
-        assert all(grid.thetas < grid.thetas_b[1:])
+        assert all(grid.a < grid.a_b[1:])
 
     check_bounds(grid)
     check_bounds(
