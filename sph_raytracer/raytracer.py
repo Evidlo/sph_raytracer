@@ -68,7 +68,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevi
 
     """
     # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.rs_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
+    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.r_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _r_inds, _r_ns, _
     e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.e_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _e_inds, _e_ns, _
@@ -206,11 +206,11 @@ def isclose(a, b, factor=3):
     # `resolution` is a bit more forgiving than `eps` (also tr.isclose doesn't scale with dtype)
     return abs(a - b) < tr.finfo(a.dtype).resolution ** (1/factor)
 
-def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
+def r_torch(r, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """Compute intersections of ray with concentric spheres
 
     Args:
-        rs (tensor): radius of each sphere
+        r (tensor): radius of each sphere
         xs (tensor): starting points of rays (*num_rays, 3)
         rays (tensor): directions of rays (*num_rays, 3)
         ftype (torch dtype): type specification for floats
@@ -233,11 +233,11 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     """
     spec = {'dtype': ftype, 'device': device}
     ispec = {'dtype': itype, 'device': device}
-    assert len(rs) - 1 < tr.iinfo(ispec['dtype']).max, "Too many rs!  Would cause overflow"
+    assert len(r) - 1 < tr.iinfo(ispec['dtype']).max, "Too many radii!  Would cause overflow"
 
     xs = tr.asarray(xs, **spec)
     rays = tr.asarray(rays, **spec)
-    rs = tr.asarray(rs, **spec)
+    r = tr.asarray(r, **spec)
     rshape = rays.shape[:-1] # number and shape of rays
     na_rays = (na,) * len(rshape) # for creating single dimensions for ray shape
 
@@ -253,21 +253,21 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # NOTE: run out of memory when doing below for 512x512, 50obs
     # t1c = tr.sqrt(rs[na, :]**2 - d[:, na]**2) # (*num_rays, num_spheres)
     # NOTE: this is the same as above but uses less memory
-    t1c = tr.empty((*rshape, len(rs)), **spec)
-    t1c[...] = rs[na_rays + (Ellipsis,)]**2 # (*num_rays, num_spheres)
+    t1c = tr.empty((*rshape, len(r)), **spec)
+    t1c[...] = r[na_rays + (Ellipsis,)]**2 # (*num_rays, num_spheres)
     t1c[...] -= d[..., na]**2 # (*num_rays, num_spheres)
     t1c = tr.sqrt(t1c)
 
-    t = tr.empty((*rshape, 2 * len(rs)), **spec)
-    t[..., :len(rs)], t[..., len(rs):] = tc[..., na] - t1c, tc[..., na] + t1c
-    inds = tr.cat((tr.arange(len(rs), **ispec), tr.arange(len(rs), **ispec)))
+    t = tr.empty((*rshape, 2 * len(r)), **spec)
+    t[..., :len(r)], t[..., len(r):] = tc[..., na] - t1c, tc[..., na] + t1c
+    inds = tr.cat((tr.arange(len(r), **ispec), tr.arange(len(r), **ispec)))
     inds = inds.repeat(*rshape, 1)
     del tc, t1c
 
     # NOTE: run out of memory when doing below for 512x512, 50obs
     # points = rays[..., na, :] * t[..., na] + xs[..., na, :]
     # NOTE: this is the same as above but uses less memory
-    points = tr.empty((*rshape, 2 * len(rs), 3), **spec)
+    points = tr.empty((*rshape, 2 * len(r), 3), **spec)
     points[...] = rays[..., na, :]
     points[...] *= t[..., na]
     points[...] += xs[..., na, :]
@@ -280,7 +280,7 @@ def r_torch(rs, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     regions = inds - negative_crossing
 
     # mark region outside outermost shell as invalid
-    regions[regions == len(rs) - 1] = -1
+    regions[regions == len(r) - 1] = -1
     # set distance NaNs to infs
     t[t.isnan()] = float('inf')
 
@@ -580,8 +580,8 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     """
     spec = {'dtype': ftype, 'device': device}
 
-    rs_b, e_b, a_b = (grid.rs_b, grid.e_b, grid.a_b)
-    xs, rs_b, e_b, a_b = map(lambda x: tr.asarray(x, **spec), (xs, rs_b, e_b, a_b))
+    r_b, e_b, a_b = (grid.r_b, grid.e_b, grid.a_b)
+    xs, r_b, e_b, a_b = map(lambda x: tr.asarray(x, **spec), (xs, r_b, e_b, a_b))
     xs_sph = cart2sph(xs)
 
     # make contiguous to avoid pytorch searchsorted warnings
@@ -590,12 +590,12 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     xs_a = xs_sph[..., 2].contiguous()
 
     # find region where each ray starts
-    r_reg = tr.searchsorted(rs_b, xs_r, right=True) - 1
+    r_reg = tr.searchsorted(r_b, xs_r, right=True) - 1
     e_reg = tr.searchsorted(e_b, xs_e, right=True) - 1
     a_reg = tr.searchsorted(a_b, xs_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
-    r_reg = tr.where(xs_r == rs_b[-1], grid.shape[0] - 1, r_reg)
+    r_reg = tr.where(xs_r == r_b[-1], grid.shape[0] - 1, r_reg)
     e_reg = tr.where(xs_e == e_b[-1], grid.shape[1] - 1, e_reg)
     a_reg = tr.where(xs_a == a_b[-1], grid.shape[2] - 1, a_reg)
 

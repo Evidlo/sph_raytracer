@@ -16,26 +16,26 @@ def check(a, b):
     )
 
 def test_r():
-    rs = (0.1, 1, 2)
+    r = (0.1, 1, 2)
 
     # ray intersects all shells
     xs = [(-3, 0, 0)]
     rays = [(1, 0, 0)]
-    r_t, r_region = r_torch(rs, xs, rays)[:2]
+    r_t, r_region = r_torch(r, xs, rays)[:2]
     assert check(r_t, [2.9, 2, 1, 3.1, 4, 5])
     assert check(r_region, [-1, 0, 1, 0, 1, -1])
 
     # ray goes in opposite direction
     xs = [(-3, 0, 0)]
     rays = [(-1, 0, 0)]
-    r_t, r_region = r_torch(rs, xs, rays)[:2]
+    r_t, r_region = r_torch(r, xs, rays)[:2]
     assert check(r_t, [-3.1, -4, -5, -2.9, -2, -1])
     assert check(r_region, [-1, 0, 1, 0, 1, -1])
 
     # ray does not intersect any shells
     xs = [(-3, 0, 0)]
     rays = [(0, 0, 1)]
-    r_t, r_region = r_torch(rs, xs, rays)[:2]
+    r_t, r_region = r_torch(r, xs, rays)[:2]
     assert tr.all(tr.isinf(r_t))
 
     # ray tangent to shell
@@ -175,18 +175,18 @@ def test_a():
 
 def test_sphericalgrid():
     grid = SphericalGrid(shape=(10, 11, 12))
-    assert (len(grid.rs_b), len(grid.e_b), len(grid.a_b)) == (11, 12, 13)
-    grid = SphericalGrid(rs_b=[1, 2], e_b=[1, 2, 3], a_b=[1, 2, 3, 4])
+    assert (len(grid.r_b), len(grid.e_b), len(grid.a_b)) == (11, 12, 13)
+    grid = SphericalGrid(r_b=[1, 2], e_b=[1, 2, 3], a_b=[1, 2, 3, 4])
     assert grid.shape == (1, 2, 3)
     # check grid boundaries and centers
     def check_bounds(grid):
-        assert len(grid.rs) == len(grid.rs_b) - 1
+        assert len(grid.r) == len(grid.r_b) - 1
         assert len(grid.e) == len(grid.e_b) - 1
         assert len(grid.a) == len(grid.a_b) - 1
-        assert all(grid.rs > grid.rs_b[:-1])
+        assert all(grid.r > grid.r_b[:-1])
         assert all(grid.e > grid.e_b[:-1])
         assert all(grid.a > grid.a_b[:-1])
-        assert all(grid.rs < grid.rs_b[1:])
+        assert all(grid.r < grid.r_b[1:])
         assert all(grid.e < grid.e_b[1:])
         assert all(grid.a < grid.a_b[1:])
 
