@@ -333,46 +333,47 @@ def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     v = tr.tensor((0, 0, 1), **spec)
 
     dotproduct = lambda a, b: tr.einsum('...j,...j->...', a, b)
-    a = rays[..., 2:]**2 - (tr.cos(e)**2)[na_rays + (Ellipsis,)]
-    b = 2 * (rays[..., 2:] * xs[..., 2:] - dotproduct(rays, xs)[..., None] * (tr.cos(e)**2)[na_rays + (Ellipsis,)])
-    c = xs[..., 2:]**2 - (tr.linalg.norm(xs, axis=-1)**2)[..., None] * (tr.cos(e)**2)[na_rays + (Ellipsis,)]
-    a[isclose(a, zero)] = zero
+    # a, b, c intermediate variables as defined in reference link
+    aa = rays[..., 2:]**2 - (tr.cos(e)**2)[na_rays + (Ellipsis,)]
+    bb = 2 * (rays[..., 2:] * xs[..., 2:] - dotproduct(rays, xs)[..., None] * (tr.cos(e)**2)[na_rays + (Ellipsis,)])
+    cc = xs[..., 2:]**2 - (tr.linalg.norm(xs, axis=-1)**2)[..., None] * (tr.cos(e)**2)[na_rays + (Ellipsis,)]
+    aa[isclose(aa, zero)] = zero
 
-    # a = dotproduct(rays, v)[:, None] - (tr.cos(e)**2)[None, :]
-    # b = 2 * (dotproduct(rays, v) *)
+    # aa = dotproduct(rays, v)[:, None] - (tr.cos(e)**2)[None, :]
+    # bb = 2 * (dotproduct(rays, v) *)
 
     # ray not parallel to cone
-    delta = b**2 - 4*a*c
+    delta = bb**2 - 4*aa*cc
     delta[isclose(delta, zero)] = zero
 
-    t1 = (-b + tr.sqrt(delta)) / (2 * a)
-    t2 = (-b - tr.sqrt(delta)) / (2 * a)
+    t1 = (-bb + tr.sqrt(delta)) / (2 * aa)
+    t2 = (-bb - tr.sqrt(delta)) / (2 * aa)
 
     # --- ray intersecting cone ---
     # compute single or double intersection
     is_single = isclose(delta, zero)
-    is_single = tr.logical_and(isclose(a, zero), tr.logical_not(isclose(b, zero)))
+    is_single = tr.logical_and(isclose(aa, zero), tr.logical_not(isclose(bb, zero)))
     t_normal = tr.empty((*rshape, 2 * len(e)), **spec)
-    t_normal[..., :len(e)] = tr.where(is_single, -2*c / b, t1)
+    t_normal[..., :len(e)] = tr.where(is_single, -2*cc / bb, t1)
     t_normal[..., len(e):] = tr.where(is_single, float('inf'), t2)
     del t1, t2
 
     # --- ray parallel to cone ---
     t_parallel = tr.empty((*rshape, 2 * len(e)), **spec)
-    t_parallel[..., :len(e)] = -c / b
+    t_parallel[..., :len(e)] = -cc / bb
     t_parallel[..., len(e):] = float('inf')
 
     is_parallel = tr.full_like(t_normal, False, device=spec['device'], dtype=tr.bool)
-    is_parallel[..., :len(e)] = tr.logical_and(isclose(a, zero), tr.logical_not(isclose(b, zero)))
+    is_parallel[..., :len(e)] = tr.logical_and(isclose(aa, zero), tr.logical_not(isclose(bb, zero)))
     is_parallel[..., len(e):] = is_parallel[..., :len(e)]
     t = tr.where(is_parallel, t_parallel, t_normal)
     # del t_normal, t_parallel, is_parallel
 
     # --- ray lies on cone ---
-    t[..., :len(e)][(a==0) * (b==0) * (c==0)] = float('inf')
-    t[..., len(e):][(a==0) * (b==0) * (c==0)] = float('inf')
-    # t[..., :len(e)][(a==0) * (b==0) * (c==0)] = 0
-    # t[..., len(e):][(a==0) * (b==0) * (c==0)] = 0
+    t[..., :len(e)][(aa==0) * (bb==0) * (cc==0)] = float('inf')
+    t[..., len(e):][(aa==0) * (bb==0) * (cc==0)] = float('inf')
+    # t[..., :len(e)][(aa==0) * (bb==0) * (cc==0)] = 0
+    # t[..., len(e):][(aa==0) * (bb==0) * (cc==0)] = 0
 
     inds = tr.cat((tr.arange(len(e), **ispec), tr.arange(len(e), **ispec)))
     inds = inds.repeat(*rshape, 1)
