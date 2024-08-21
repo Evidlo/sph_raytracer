@@ -441,7 +441,7 @@ class ConeRectGeom(ViewGeom):
         """(segments, widths, colors): Wireframe for 3D visualization"""
         # draw FOV corners
 
-        corners = self.rays[(-1, -1, 0, 0), (0, -1, -1, 0)]
+        corners = self.rays[(-1, -1, 0, 0), (0, -1, -1, 0)].clone()
         corners *= tr.linalg.norm(self.pos)
 
         cone_lines = tr.stack((self.pos.broadcast_to(corners.shape), corners), dim=1)
@@ -494,7 +494,7 @@ class ConeCircGeom(ConeRectGeom):
     def _wireframe(self):
         """(segments, widths, colors): Wireframe for 3D visualization"""
 
-        outer = self.rays[-1]
+        outer = self.rays[-1].clone()
         outer *= tr.linalg.norm(self.pos)
 
         # sample up to 5 points on outer edge
@@ -571,7 +571,7 @@ class ParallelGeom(ViewGeom):
         """(segments, widths, colors): Wireframe for 3D visualization"""
         # draw FOV corners
 
-        corners_start = self.ray_starts[(-1, -1, 0, 0), (0, -1, -1, 0)]
+        corners_start = self.ray_starts[(-1, -1, 0, 0), (0, -1, -1, 0)].clone()
         corners_end = (
             corners_start + self.lookdir[None, :] * 2*tr.linalg.norm(self.pos)
         )
