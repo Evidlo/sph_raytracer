@@ -19,8 +19,9 @@ def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False
 
     Args:
         x (tensor): tensor with values to forward fill
-        initial (tensor or None): initial fill value.  If `x.shape` is (1, 2, 3, 4)
-            and dim==-2, then `initial.shape` should be (1, 2, 4)
+        initial (tensor or None): initial fill value.  If `x.shape` is
+            (1, 2, 3, 4) and dim==-2, then `initial.shape`
+            should be (1, 2, 4)
         dim (int): dimension to fill
         fill_what (float): value to be replaced
         inplace (bool): whether to make a copy of `t`
@@ -43,7 +44,8 @@ def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False
     return x.moveaxis(0, dim)
 
 
-def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice='cpu', invalid=False, debug=False):
+def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
+                  pdevice='cpu', invalid=False, debug=False, debug_los=None):
     """Sort points by distance.  Then filter out invalid intersections (nan t values)
     and points which lie outside radius `max_r` (inplace)
 
@@ -56,6 +58,8 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevi
         invalid (bool): filter out invalid lengths/regions
         device (str): PyTorch device of returned tensors
         pdevice (str): PyTorch device of returned tensors
+        debug (bool): enable debug printing
+        debug_los (tuple, None): choose LOS to debug
 
     Returns:
         inds (tensor[int]): voxel indices of every voxel that ray intersects with
@@ -115,7 +119,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevi
         dim=-1, fill_what=-2, inplace=True
     )
 
-    # segment intersection lengths with voxels
+    # compute intersection lengths with voxels
     # last segment in each ray is infinitely long
     inf = tr.full(all_ts_s.shape[:-1] + (1,), float('inf'), dtype=ftype, device=pdevice)
     all_lens_s = all_ts_s.diff(dim=-1, append=inf)
@@ -159,26 +163,32 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevi
         _all_kinds_s = _all_kinds.gather(-1, s)
 
         shp = len(all_regs_s.shape)
-        if shp == 4:
-            which = (0, 0)
-            regs = all_regs_s[:, 0, 0]
-        elif shp == 3:
-            which = (0,)
-            regs = all_regs_s[:, 0]
-        else:
-            raise ValueError(f"Wrong shape {all_regs_s.shape}")
-        lens = all_lens_s[which]
-        ts   = all_ts_s[which]
-        inds = _all_inds_s[which]
-        ns = _all_ns_s[which]
-        kinds = _all_kinds_s[which]
+        print(all_regs_s.shape)
+        if debug_los is None:
+            # choose a LOS to debug
+            if shp == 4:
+                debug_los = (0, 0)
+            elif shp == 3:
+                debug_los = (0,)
+            else:
+                raise ValueError(f"Wrong shape {all_regs_s.shape}")
+
+        regs = all_regs_s[..., *debug_los, :].T
+        lens = all_lens_s[debug_los]
+        ts   = all_ts_s[debug_los]
+        inds = _all_inds_s[debug_los]
+        ns = _all_ns_s[debug_los]
+        kinds = _all_kinds_s[debug_los]
         kmap = {0:'r', 1:'e', 2:'a'}
         print(find_starts(grid, xs).flatten())
+        print('typ   reg       intlen     dist      ind  neg')
+        print('---------------------------------------------')
+
         for k, r, l, t_, ind, n in zip(kinds, regs, lens, ts, inds, ns):
             print(
                 f'{kmap[int(k)]:<2}',
                 f'r:[{r[0]:>2},{r[1]:>2},{r[2]:>2}]',
-                f'l:{float(l):<4.2f}',
+                f'l:{float(l):<6.2f}',
                 f't:{float(t_):<10.2f}'
                 f'i:{int(ind):<2}',
                 f'n:{n:<2}',
@@ -618,10 +628,12 @@ class Operator:
         itype (torch dtype): type specification for ints
         device (str): torch device
         dynamic (bool): force whether input density is evolving (4D) or static (3D)
+        debug (bool): enable debug printing
+        debug_los (tuple, None): choose LOS to debug
     """
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE,
-                 debug=False, invalid=False, _flatten=False):
+                 debug=False, debug_los=None, invalid=False, _flatten=False):
         self.grid = grid
         self.geom = geom
         if dynamic is None:
@@ -633,7 +645,7 @@ class Operator:
         self.regs, self.lens = trace_indices(
             grid, geom.ray_starts, geom.rays,
             ftype=ftype, itype=itype, device=device,
-            invalid=invalid, debug=debug
+            invalid=invalid, debug=debug, debug_los=debug_los
         )
         self._flatten = _flatten
 
