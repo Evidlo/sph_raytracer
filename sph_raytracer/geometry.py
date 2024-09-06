@@ -93,9 +93,13 @@ class SphericalGrid:
 
     def __init__(
             self, size_r=(0, 1), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi), shape=(50, 50, 50), spacing='lin',
-            r_b=None, e_b=None, a_b=None):
+            r_b=None, e_b=None, a_b=None, rs_b=None, phis_b=None, thetas_b=None):
         size = Size(size_r, size_e, size_a)
         shape = Shape(*shape)
+
+        # FIXME: deleteme
+        if (rs_b is not None) and (phis_b is not None) and (thetas_b is not None):
+            r_b, e_b, a_b = rs_b, phis_b, thetas_b
 
         # infer shape and size if grid is manually specified
         if (r_b is not None) and (e_b is not None) and (a_b is not None):
@@ -127,8 +131,13 @@ class SphericalGrid:
 
         self.size = size
         self.shape = shape
+        self.spacing = spacing
         self.r_b, self.e_b, self.a_b = r_b, e_b, a_b
         self.r, self.e, self.a = r, e, a
+
+        # FIXME: deleteme
+        self.rs_b, self.phis_b, self.thetas_b = r_b, e_b, a_b
+        self.rs, self.phis, self.thetas = r, e, a
 
     def __repr__(self):
         s, sh = self.size, self.shape
