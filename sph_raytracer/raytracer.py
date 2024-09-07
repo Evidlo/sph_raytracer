@@ -63,12 +63,13 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
 
     Returns:
         inds (tensor[int]): voxel indices of every voxel that ray intersects with
-            (*rays.shape, max_int_voxels, 3)
+            (3, *num_rays, max_int_voxels)
         lens (tensor[float]): intersection length of each voxel with ray's path
-            (*rays.shape, max_int_voxels)
+            (*num_rays, max_int_voxels)
 
 
     where `max_int_voxels` is `2*grid.shape[0] + 2*grid.shape[1] + grid.shape[2]`
+    and `num_rays` in the shape of the detector
 
     """
     # --- compute voxel indices for all rays and their distances ---
@@ -80,6 +81,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
     if not debug: del _a_inds, _a_ns, _
 
     # concatenate intersection distances/points from all geometry kinds
+    # shape: (num_rays, max_int_voxels)
     all_ts = tr.cat((r_t, e_t, a_t), dim=-1)
     del r_t, e_t, a_t
     # concatenate regions and place into appropriate column
@@ -91,13 +93,30 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
     e_regs[1, ...] = _e_regs
     a_regs = tr.full((3, *_a_regs.shape), -2, device=pdevice, dtype=itype)
     a_regs[2, ...] = _a_regs
+    # shape: (3, *num_rays, max_int_voxels)
     all_regs = tr.cat((r_regs, e_regs, a_regs), dim=-1)
     # _all_regs = tr.cat((_r_regs, _e_regs, _a_regs), dim=-1)
 
     del r_regs, e_regs, a_regs, _r_regs, _e_regs, _a_regs
 
+    # insert starting point defined by `xs` prior to sorting.
+    # compute the region of the starting point
+    start_regs = find_starts(grid, xs, ftype=ftype, device=pdevice)[..., None]
+    # starting point is not necessarily coincident with a boundary, so
+    # there is no boundary index.  set to -1
+    start_inds = tr.full_like(start_regs, -1)
+    _start_inds = start_inds[0]
+    _start_ns = tr.full_like(_start_inds, -1)
+    all_regs = tr.concat((all_regs, start_regs), dim=-1)
+    # the starting point distance is always 0
+    all_ts = tr.concat((
+        all_ts,
+        tr.zeros_like(all_ts[..., 0:1])
+    ), dim=-1)
+
+
     # mark regions behind ray start as invalid
-    # all_regs[all_ts < 0] = -2
+    all_regs[:, all_ts < 0] = -2
     # _all_regs[all_ts < 0] = -2
 
     # sort points by distance
@@ -153,13 +172,16 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
         e_inds[1, ...] = _e_inds
         a_inds = tr.full((3, *_a_inds.shape), -1, device=pdevice, dtype=itype)
         a_inds[2, ...] = _a_inds
-        all_inds = tr.cat((r_inds, e_inds, a_inds), dim=-1)
-        _all_inds = tr.cat((_r_inds, _e_inds, _a_inds), dim=-1)
+        all_inds = tr.cat((r_inds, e_inds, a_inds, start_inds), dim=-1)
+        _all_inds = tr.cat((_r_inds, _e_inds, _a_inds, _start_inds), dim=-1)
         _all_inds_s = _all_inds.gather(-1, s)
         all_inds_s = tr.take_along_dim(all_inds, s[None, ...], dim=-1)
-        _all_ns = tr.cat((_r_ns, _e_ns, _a_ns), dim=-1)
+        _all_ns = tr.cat((_r_ns, _e_ns, _a_ns, _start_ns), dim=-1)
         _all_ns_s = _all_ns.gather(-1, s)
-        _all_kinds = tr.cat((tr.full_like(_r_inds, 0), tr.full_like(_e_inds, 1), tr.full_like(_a_inds, 2)), dim=-1)
+        _all_kinds = tr.cat(
+            (tr.full_like(_r_inds, 0), tr.full_like(_e_inds, 1), tr.full_like(_a_inds, 2), tr.full_like(_start_inds, -1)),
+            dim=-1
+        )
         _all_kinds_s = _all_kinds.gather(-1, s)
 
         shp = len(all_regs_s.shape)
@@ -179,7 +201,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
         inds = _all_inds_s[debug_los]
         ns = _all_ns_s[debug_los]
         kinds = _all_kinds_s[debug_los]
-        kmap = {0:'r', 1:'e', 2:'a'}
+        kmap = {-1:'?', 0:'r', 1:'e', 2:'a'}
         print(find_starts(grid, xs).flatten())
         print('typ   reg       intlen     dist      ind  neg')
         print('---------------------------------------------')
