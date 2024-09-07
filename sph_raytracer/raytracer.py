@@ -72,6 +72,12 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
     and `num_rays` in the shape of the detector
 
     """
+    # broadcasting so that `xs` and `rays` are the same shape
+    if xs.numel() > rays.numel():
+        rays = rays.broadcast_to(xs.shape)
+    else:
+        xs = xs.broadcast_to(rays.shape)
+
     # --- compute voxel indices for all rays and their distances ---
     r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.r_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
     if not debug: del _r_inds, _r_ns, _
@@ -185,7 +191,6 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
         _all_kinds_s = _all_kinds.gather(-1, s)
 
         shp = len(all_regs_s.shape)
-        print(all_regs_s.shape)
         if debug_los is None:
             # choose a LOS to debug
             if shp == 4:
@@ -202,7 +207,8 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
         ns = _all_ns_s[debug_los]
         kinds = _all_kinds_s[debug_los]
         kmap = {-1:'?', 0:'r', 1:'e', 2:'a'}
-        print(find_starts(grid, xs).flatten())
+        print('ray_start:', xs[debug_los])
+        print('ray:', rays[debug_los])
         print('typ   reg       intlen     dist      ind  neg')
         print('---------------------------------------------')
 
