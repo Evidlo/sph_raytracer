@@ -7,6 +7,7 @@ from matplotlib.ticker import EngFormatter
 import numpy as np
 import torch as tr
 from itertools import chain, repeat
+from collections.abc import Iterable
 
 from .geometry import SphericalGrid, ConeRectGeom, ConeCircGeom, ViewGeomCollection
 from .raytracer import Operator
@@ -97,11 +98,10 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
     Returns:
         matplotlib.animation.ArtistAnimation
     """
+    ispolar = lambda g: isinstance(g, ConeCircGeom)
+    isiterable = lambda g: isinstance(g, (ViewGeomCollection, Iterable))
     if polar is None:
-        polar = (
-            isinstance(geom, ConeCircGeom) or
-            (isinstance(geom, ViewGeomCollection) and isinstance(geom.geoms[0], ConeCircGeom))
-        )
+        polar = ispolar(geom) or (isiterable(geom) and ispolar(geom[0]))
     if ax is None:
         fig = plt.figure(figsize=(3, 3))
         ax = fig.add_subplot(polar=polar)
@@ -140,7 +140,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
         kwargs['vmin'], kwargs['vmax'] = images.min(), images.max()
     if images.ndim == 3:
         # use same ViewGeom for all images if a ViewGeomCollection not provided
-        geom = geom.geoms if isinstance(geom, ViewGeomCollection) else repeat(geom)
+        geom = geom if isiterable(geom) else repeat(geom)
         artists = [[imshow(im, g, animated=True, **kwargs)] for im, g in zip(images, geom)]
         result = animation.ArtistAnimation(ax.figure, artists, interval=200)
     elif images.ndim == 2:
