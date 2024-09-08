@@ -123,7 +123,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
             r_lin = np.linspace(0, fov/2, images.shape[-2] + 1)
             theta_lin = np.linspace(0, 2*np.pi, images.shape[-1] + 1)
             # realign polar plot up direction
-            ax.set_theta_zero_location('N')
+            # ax.set_theta_zero_location('N')
             theta, r = np.meshgrid(theta_lin, r_lin)
             return ax.pcolormesh(theta, r, img, **kwargs)
     else:
