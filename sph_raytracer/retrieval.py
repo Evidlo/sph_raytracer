@@ -85,14 +85,14 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
             tot_loss = f_stat = r_stat = 0
             for loss_fn in loss_fns:
                 loss = loss_fn(f, y, density, coeffs)
-                if loss_fn.use_grad:
+                if loss_fn.use_grad and not loss_fn.kind == 'oracle':
                     tot_loss += loss
-                if loss_fn.kind == 'fidelity':
+                if loss_fn.kind == 'oracle' and not math.isnan(loss):
+                    o_stat = loss
+                elif loss_fn.kind == 'fidelity':
                     f_stat += loss
                 elif loss_fn.kind == 'regularizer':
                     r_stat += loss
-                elif loss_fn.kind == 'oracle' and not math.isnan(loss):
-                    o_stat = loss
                 # log the loss
                 losses[loss_fn].append(detach_loss(loss))
 
