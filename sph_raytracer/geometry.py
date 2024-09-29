@@ -104,7 +104,10 @@ class SphericalGrid:
         # infer shape and size if grid is manually specified
         if (r_b is not None) and (e_b is not None) and (a_b is not None):
             shape = Shape(len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
-            size = Size((min(r_b), max(r_b)), (min(e_b), max(e_b)), (min(a_b), max(a_b)))
+            size_r = float(min(r_b)), float(max(r_b))
+            size_e = float(min(e_b)), float(max(e_b))
+            size_a = float(min(a_b)), float(max(a_b))
+            size = Size(size_r, size_e, size_a)
 
             # enforce float64 dtype
             r_b, e_b, a_b = [tr.asarray(x, dtype=tr.float64) for x in (r_b, e_b, a_b)]
@@ -143,7 +146,7 @@ class SphericalGrid:
         s, sh = self.size, self.shape
         size = f"(({s[0][0]:.1f}, {s[0][1]:.1f}), ({s[1][0]:.1f}, {s[1][1]:.1f}), ({s[2][0]:.1f}, {s[2][1]:.1f}))"
         shape = f"({sh[0]}, {sh[1]}, {sh[2]})"
-        string = f"""SphericalGrid(
+        string = f"""{self.__class__.__name__}(
             size={size},
             shape={tuple(self.shape)}
         )"""
@@ -181,6 +184,10 @@ class SphericalGrid:
         ax.set_zlabel('Z')
 
         return artist
+
+    # @property
+    # def shape(self):
+    #     return len(self.r), len(self.e), len(self.a)
 
 
 # ----- Viewing Geometry -----
