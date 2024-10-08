@@ -10,6 +10,7 @@ from .geometry import ViewGeomCollection
 na = None
 
 DEVICE = 'cpu'
+PDEVICE = 'cpu'
 FTYPE = tr.float64
 ITYPE = tr.int64
 
@@ -45,7 +46,7 @@ def forward_fill_jit(x, initial, dim:int=-1, fill_what:int=0, inplace:bool=False
 
 
 def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
-                  pdevice='cpu', invalid=False, debug=False, debug_los=None):
+                  pdevice=PDEVICE, invalid=False, debug=False, debug_los=None):
     """Sort points by distance.  Then filter out invalid intersections (nan t values)
     and points which lie outside radius `max_r` (inplace)
 
@@ -654,13 +655,14 @@ class Operator:
         geom (ViewGeom): measurement locations and rays
         ftype (torch dtype): type specification for floats
         itype (torch dtype): type specification for ints
-        device (str): torch device
+        device (str): torch device where tensors are stored
+        pdevice (str): torch device where tensors are initialized
         dynamic (bool): force whether input density is evolving (4D) or static (3D)
         debug (bool): enable debug printing
         debug_los (tuple, None): choose LOS to debug
     """
     def __init__(self, grid, geom, dynamic=False,
-                 ftype=FTYPE, itype=ITYPE, device=DEVICE,
+                 ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice=PDEVICE,
                  debug=False, debug_los=None, invalid=False, _flatten=False):
         self.grid = grid
         self.geom = geom
@@ -672,7 +674,7 @@ class Operator:
         self.device = device
         self.regs, self.lens = trace_indices(
             grid, geom.ray_starts, geom.rays,
-            ftype=ftype, itype=itype, device=device,
+            ftype=ftype, itype=itype, device=device, pdevice=pdevice,
             invalid=invalid, debug=debug, debug_los=debug_los
         )
         self._flatten = _flatten
