@@ -114,6 +114,17 @@ class SquareRelLoss(Loss):
         return t.mean((self.projection_mask * rel_err)**2)
 
 
+class AbsLoss(Loss):
+    """Mean L1 loss"""
+
+    kind = 'fidelity'
+
+    def compute(self, f, y, d, c):
+        """"""
+        result = t.mean(self.projection_mask * (y - f(d * self.volume_mask)).abs())
+        return result
+
+
 class CheaterLoss(Loss):
     """L2 loss directly over density ground truth"""
 
