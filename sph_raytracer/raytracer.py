@@ -80,12 +80,12 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
         xs = xs.broadcast_to(rays.shape)
 
     # --- compute voxel indices for all rays and their distances ---
-    r_t, _r_regs, _, _r_inds, _r_ns = r_torch(grid.r_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
-    if not debug: del _r_inds, _r_ns, _
-    e_t, _e_regs, _, _e_inds, _e_ns = e_torch(grid.e_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
-    if not debug: del _e_inds, _e_ns, _
-    a_t, _a_regs, _, _a_inds, _a_ns = a_torch(grid.a_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
-    if not debug: del _a_inds, _a_ns, _
+    r_t, _r_regs, _r_inds, _r_ns = r_torch(grid.r_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
+    if not debug: del _r_inds, _r_ns
+    e_t, _e_regs, _e_inds, _e_ns = e_torch(grid.e_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
+    if not debug: del _e_inds, _e_ns
+    a_t, _a_regs, _a_inds, _a_ns = a_torch(grid.a_b, xs, rays, ftype=ftype, itype=itype, device=pdevice)
+    if not debug: del _a_inds, _a_ns
 
     # concatenate intersection distances/points from all geometry kinds
     # shape: (num_rays, max_int_voxels)
@@ -261,8 +261,6 @@ def r_torch(r, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
             (*num_rays, 2 * num_spheres).  Can be negative or inf
         regions (tensor[int]): region index associated with each point
             (*num_rays, num_spheres).
-        points (tensor): intersection points of rays with spheres
-            (*num_rays, 2 * num_spheres, 3)
         inds (tensor[int]): geometry index that the point lies on
             (*num_rays, 2 * num_spheres)
         negative_crossing (tensor[int]): whether ray crosses geometry in
@@ -315,6 +313,7 @@ def r_torch(r, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # check whether crossing of plane is positive or negative
     dotproduct = lambda a, b: tr.einsum('...c,...bc->...b', a, b)
     negative_crossing = (dotproduct(rays, points) < 0).type(tr.int8)
+    del points
 
     regions = inds - negative_crossing
 
@@ -323,7 +322,7 @@ def r_torch(r, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # set distance NaNs to infs
     t[t.isnan()] = float('inf')
 
-    return t, regions, points, inds, negative_crossing
+    return t, regions, inds, negative_crossing
 
 
 def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
@@ -343,8 +342,6 @@ def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
             (*num_rays, 2 * num_cones).  Can be negative or inf
         regions (tensor[int]): region index associated with each point
             (*num_rays, 2 * num_cones).
-        points (tensor): intersection points of rays with cones
-            (*num_rays, 2 * num_cones, 3)
         inds (tensor[int]): geometry index that the point lies on
             (*num_rays, 2 * num_cones)
         negative_crossing (tensor[int]): whether ray crosses geometry in
@@ -406,11 +403,12 @@ def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     is_parallel[..., :len(e)] = tr.logical_and(isclose(aa, zero), tr.logical_not(isclose(bb, zero)))
     is_parallel[..., len(e):] = is_parallel[..., :len(e)]
     t = tr.where(is_parallel, t_parallel, t_normal)
-    # del t_normal, t_parallel, is_parallel
+    del t_normal, t_parallel, is_parallel
 
     # --- ray lies on cone ---
     t[..., :len(e)][(aa==0) * (bb==0) * (cc==0)] = float('inf')
     t[..., len(e):][(aa==0) * (bb==0) * (cc==0)] = float('inf')
+    del aa, bb, cc
     # t[..., :len(e)][(aa==0) * (bb==0) * (cc==0)] = 0
     # t[..., len(e):][(aa==0) * (bb==0) * (cc==0)] = 0
 
@@ -453,12 +451,13 @@ def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # shadow = tr.logical_not(isclose(points[..., 2], cone_point_z))
     cone_point_z_sign = tr.cos(e_expanded) >= 0
     shadow = tr.logical_not((points[..., 2] >= 0) == cone_point_z_sign)
+    del points
     # when e==pi/2, sign is unreliable.  Coincidentally, shadow masking is not necessary
     # for this case
     shadow[..., isclose(tr.tensor(tr.pi / 2, **spec), e_expanded)] = False
 
 
-    points[shadow] = float('inf')
+    # points[shadow] = float('inf')
     t[shadow] = float('inf')
 
     # mark region outside last cone as invalid
@@ -466,7 +465,7 @@ def e_torch(e, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     # set distance NaNs to infs
     t[t.isnan()] = float('inf')
 
-    return t, regions, points, inds, negative_crossing
+    return t, regions, inds, negative_crossing
 
 
 def a_torch(a_b, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
@@ -485,8 +484,6 @@ def a_torch(a_b, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
             (*num_rays, num_planes).  Can be negative or inf
         regions (tensor[int]): region index associated with each point
             (*num_rays, num_planes).
-        points (tensor[float]): intersection points of rays with planes
-            (*num_rays, num_planes, 3)
         inds (tensor[int]): geometry index that the point lies on
             (*num_rays, num_planes)
         negative_crossing (tensor[int]): whether ray crosses geometry in
@@ -545,14 +542,14 @@ def a_torch(a_b, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE):
     points[...] += xs[..., na, :]
 
     shadow = tr.einsum('bc,...bc->...b', planes[..., :2], points[..., :2]) < 0
+    del points, planes
 
-    points[shadow] = float('inf')
     t[shadow] = float('inf')
 
     # set distance NaNs to infs
     t[t.isnan()] = float('inf')
 
-    return t, regions, points, inds, negative_crossing
+    return t, regions, inds, negative_crossing
 
 
 def cart2sph(xyz):
