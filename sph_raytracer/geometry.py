@@ -296,7 +296,10 @@ class ViewGeomCollection(ViewGeom):
     def __init__(self, *geoms):
         if not all(g.shape == geoms[0].shape for g in geoms):
             raise ValueError("ViewGeoms must all have same shape")
-        self.geoms = list(geoms)
+        if len(geoms) == 1 and hasattr(geoms[0], 'geoms'):
+            self.geoms = geoms[0].geoms
+        else:
+            self.geoms = list(geoms)
 
     def __add__(self, other):
         if isinstance(other, ViewGeomCollection):

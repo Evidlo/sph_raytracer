@@ -660,7 +660,8 @@ class Operator:
     """
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice=PDEVICE,
-                 debug=False, debug_los=None, invalid=False, _flatten=False):
+                 debug=False, debug_los=None, invalid=False, _flatten=False,
+                 _compute=True):
         self.grid = grid
         self.geom = geom
         if dynamic is None:
@@ -669,11 +670,12 @@ class Operator:
         self.ftype = ftype
         self.itype = itype
         self.device = device
-        self.regs, self.lens = trace_indices(
-            grid, geom.ray_starts, geom.rays,
-            ftype=ftype, itype=itype, device=device, pdevice=pdevice,
-            invalid=invalid, debug=debug, debug_los=debug_los
-        )
+        if _compute:
+            self.regs, self.lens = trace_indices(
+                grid, geom.ray_starts, geom.rays,
+                ftype=ftype, itype=itype, device=device, pdevice=pdevice,
+                invalid=invalid, debug=debug, debug_los=debug_los
+            )
         self._flatten = _flatten
 
         # FIXME: should turn this check back on
@@ -734,6 +736,42 @@ class Operator:
             else:
                 return (density[r, e, a] * self.lens).sum(axis=-1)
 
+    def T(self, line_integrations):
+        """Adjoint of raytrace line integration operator.  Back projects line integrals to a density
+
+        Args:
+            line_integrations (tensor): integrated lines of sight of shape `geom.shape`
+
+        Returns:
+            density (tensor): 3D tensor of shape `grid.shape` if dynamic=False.  4D tensor
+                with first dimension equal to length of geom.shape[0] if dynamic=True
+        """
+        r, e, a = self.regs
+
+        density = tr.zeros(
+            self.grid.shape,
+            dtype=line_integrations.dtype, device=self.device
+        )
+
+        # if dynamic density
+        if density.ndim == 4:
+            raise NotImplementedError
+        else:
+            len_sums = self.lens.sum(dim=-1, keepdim=True)
+            len_sums[len_sums==0] = 1
+            density.index_put_(
+                (r, e, a),
+                line_integrations[..., None] *
+                self.lens,
+                # 1 / len_sums,
+                # self.lens / len_sums, # weight for each voxel along a LOS
+                # self.lens, # weight for each voxel along a LOS
+                accumulate=True
+            )
+
+        return density
+
+
     def __repr__(self):
         if self.dynamic:
             return f"Operator({(self.geom.shape[0], *self.grid.shape)} → {self.geom.shape})"
@@ -741,13 +779,19 @@ class Operator:
             return f"Operator({self.grid.shape} → {self.geom.shape})"
 
 
-    def plot(self, ax=None):
+    def plot(self, grid=None, geom=None, ax=None):
         """Generate Matplotlib wireframe plot for this object
 
         Returns:
+            grid (SphericalGrid, optional): spherical grid extent/resolution information
+            geom (ViewGeom, optional): measurement locations and rays
             matplotlib Animation if dynamic density or multiple vantages
             matplotlib Axes if static density and single vantage
         """
+
+        grid = self.grid if grid is None else grid
+        geom = self.geom if geom is None else geom
+
         import matplotlib.pyplot as plt
         from matplotlib import animation
         from mpl_toolkits.mplot3d.art3d import Line3DCollection
@@ -756,10 +800,10 @@ class Operator:
             fig = plt.figure(figsize=(3, 3))
             ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
-        self.grid.plot(ax)
+        grid.plot(ax)
 
         # draw path
-        if (pos := self.geom.pos) is not None:
+        if (pos := geom.pos) is not None:
             lc = Line3DCollection([])
             segments = tr.stack((pos[:-1], pos[1:]))
             lc.set_segments(segments)
@@ -767,7 +811,7 @@ class Operator:
             lc.set_colors(['gray'] * len(segments))
             ax.add_collection(lc)
 
-        wireframe = self.geom._wireframe
+        wireframe = geom._wireframe
         lc = Line3DCollection([])
         ax.add_collection(lc)
 
@@ -781,7 +825,7 @@ class Operator:
         update(0)
         # limits and labels
         # lim = max(tr.linalg.norm(self.geom.ray_starts, dim=-1))
-        lim = tr.abs(self.geom.ray_starts).max()
+        lim = tr.abs(geom.ray_starts).max()
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
@@ -796,4 +840,4 @@ class Operator:
             return ax
         else:
             N = len(wireframe)
-            return animation.FuncAnimation(ax.figure, update, N, interval=3000/N, blit=False)
+            return animation.FuncAnimation(ax.figure, self._update, N, interval=3000/N, blit=False)

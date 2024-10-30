@@ -67,6 +67,8 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
             device=device or f.device,
             dtype=t.float64
         )
+    else:
+        coeffs.requires_grad_()
 
     best_loss = float('inf')
     best_coeffs = None
