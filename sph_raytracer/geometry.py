@@ -177,7 +177,7 @@ class SphericalGrid:
         z = tr.outer(tr.ones_like(u), tr.cos(v)) * self.size[0][1]
 
         # Plot the surface
-        artist = ax.plot_surface(x, y, z, zorder=-999)
+        artist = ax.plot_surface(x, y, z, zorder=99)
         ax.set_aspect('equal')
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
