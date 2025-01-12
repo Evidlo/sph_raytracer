@@ -779,7 +779,7 @@ class Operator:
             return f"Operator({self.grid.shape} → {self.geom.shape})"
 
 
-    def plot(self, grid=None, geom=None, ax=None):
+    def plot(self, ax=None, grid=None, geom=None):
         """Generate Matplotlib wireframe plot for this object
 
         Returns:

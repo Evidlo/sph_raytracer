@@ -43,4 +43,4 @@ ax2.set_title('View Geometry')
 # operator has a .plot() method which returns a matplotlib animation
 ani = op.plot(ax2)
 
-plt.show()
+# plt.show()
