@@ -401,6 +401,9 @@ class ConeRectGeom(ViewGeom):
         lookdir (tuple[float]): detector pointing direction
         updir (tuple[float]): direction of detector +Y
         fov (tuple[float]): detector field of view (fov_x, fov_y)
+
+    Follows matplotlib image convention where pixel (0, 0) is top left
+    corner of view and (-1, -1) is bottom right
     """
 
     def __init__(self, shape, pos, lookdir=None, updir=None, fov=(45, 45)):
@@ -434,7 +437,7 @@ class ConeRectGeom(ViewGeom):
         vlim = tr.tan(tr.deg2rad(self.fov[1] / 2)) if self.shape[1] > 1 else 0
         rays = (
         self.lookdir[None, None, :]
-        + u[None, None, :] * tr.linspace(ulim, -ulim, self.shape[0])[:, None, None]
+        + u[None, None, :] * tr.linspace(-ulim, ulim, self.shape[0])[:, None, None]
         + v[None, None, :] * tr.linspace(-vlim, vlim, self.shape[1])[None, :, None]
         ).reshape((*self.shape, 3))
         rays /= tr.linalg.norm(rays, axis=-1)[..., None]
