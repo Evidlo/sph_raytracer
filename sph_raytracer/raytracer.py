@@ -657,6 +657,7 @@ class Operator:
         dynamic (bool): force whether input density is evolving (4D) or static (3D)
         debug (bool): enable debug printing
         debug_los (tuple, None): choose LOS to debug
+        _compute (bool): disable actual computation of LOS for plotting purposes
     """
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice=PDEVICE,
