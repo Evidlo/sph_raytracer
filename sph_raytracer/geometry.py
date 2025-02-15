@@ -198,15 +198,18 @@ Segment = namedtuple('Segment', ['color', 'thickness', 'start', 'end'])
 class ViewGeom:
     """Custom sensor with arbitrary ray placement.
 
-    Create a custom viewing geometry by specifying the start positions (i.e. absolute pixel locations)
-    and ray direction (i.e. pixel LOSs) for every pixel.  The pixels need not be in a grid or colocated in space.
+    Create a custom viewing geometry by specifying the start positions
+    (i.e. absolute pixel locations) and ray direction (i.e. pixel LOSs)
+    for every pixel in cartesian coordinates.  The pixels need not be
+    in a spatial grid and may be placed arbitrarily
 
-    The detector may be any shape as long as the last dimension has length 3.  The shape of the detector controls the shape
-    of images returned by the raytracer (`Operator`)
+    The detector may be any shape as long as the last dimension has length 3.
+    The shape of the detector controls the shape of images returned by the raytracer
+    (`Operator`)
 
     Args:
-        ray_starts (tensor): Pixel location array of shape (..., 3)
-        rays (tensor): Pixel LOS array of shape (..., 3)
+        ray_starts (tensor): XYZ Pixel location array of shape (..., 3)
+        rays (tensor): XYZ Pixel LOS array of shape (..., 3)
 
     Attributes:
         ray_starts (tensor):
