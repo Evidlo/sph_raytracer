@@ -499,7 +499,7 @@ class ConeCircGeom(ConeRectGeom):
         else:
             raise ValueError(f"Invalid spacing {spacing}")
 
-        self.theta = tr.linspace(0, 2 * tr.pi, self.shape[1])
+        self.theta = tr.linspace(0, 2 * tr.pi, self.shape[1]) + tr.pi / 2
 
     @property
     def rays(self):
