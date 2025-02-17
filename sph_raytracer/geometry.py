@@ -49,6 +49,7 @@ class SphericalGrid:
             in radians [-π,π] (measured from +X axis)
         timeunit (str, optional): unit of time values.  Default 's' (seconds)
             See https://numpy.org/devdocs/reference/arrays.datetime.html#arrays-dtypes-timeunits
+            Useful when converting grid time bins back to e.g. np.datetime64
 
     Attributes:
         shape (tuple[int])
@@ -107,6 +108,7 @@ class SphericalGrid:
             size_t=(0, 1), size_r=(0, 1), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi),
             spacing='lin',
             t=None, r_b=None, e_b=None, a_b=None,
+            timeunit='s',
             # FIXME: deprecated args
             rs_b=None, phis_b=None, thetas_b=None):
 
@@ -170,6 +172,7 @@ class SphericalGrid:
         self.spacing = spacing
         self.r_b, self.e_b, self.a_b = r_b, e_b, a_b
         self.t, self.r, self.e, self.a = t, r, e, a
+        self.timeunit = timeunit
 
         # FIXME: deleteme, deprecated args
         self.rs_b, self.phis_b, self.thetas_b = r_b, e_b, a_b
