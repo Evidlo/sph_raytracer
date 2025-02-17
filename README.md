@@ -44,7 +44,7 @@ This library was uses only PyTorch array operations at the expense of memory con
 --- Memory Usage ---
 
 Ray coordinates memory: 4.25 GB
-Density memory: 0.05 GB
+Volume memory: 0.05 GB
 ```
 
 ## Architecture
