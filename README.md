@@ -25,6 +25,10 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
 <img src="static_retrieval1.gif" height=200/>
 </p>
 
+    python examples/dynamic_measurements.py
+    
+<img src="dynamic.gif" height=250/>
+
 ## Memory Usage
 
 This library was uses only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB can be approximated with `examples/memory_usage.py`
