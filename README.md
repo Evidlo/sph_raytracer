@@ -1,6 +1,6 @@
 # sph_raytracer
 
-A 3D/4D volume raytracer in spherical coordinates implemented in PyTorch.
+A 3D/4D volume raytracer in spherical coordinates for arbitrary detector shape implemented in PyTorch.
 
 Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
