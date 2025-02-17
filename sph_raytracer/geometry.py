@@ -41,7 +41,7 @@ class SphericalGrid:
         shape (tuple[int]): shape of spherical grid (N time bins, N rad. bins, N elev. bins, N az. bins)
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
-        t (ndarray[datetime64], optional): manually specify temporal samples.
+        t (ndarray, optional): manually specify temporal samples.
         r_b (ndarray, optional): manually specify radial shell boundaries.
         e_b (ndarray, optional): manually specify elevation cone boundaries
             in radians [0,π] (measured from +Z axis).
@@ -138,6 +138,8 @@ class SphericalGrid:
                 shape = StaticShape(len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
                 size = StaticSize(size_r, size_e, size_a)
             else:
+                size_t = float(min(t)), float(max(t))
+                t = tr.asarray(t, dtype=tr.int64)
                 shape = DynamicShape(len(t), len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
                 size = DynamicSize(size_t, size_r, size_e, size_a)
 
