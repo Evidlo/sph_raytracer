@@ -31,7 +31,7 @@ Check `examples/` for samples demonstrating forward raytracing and retrieval.
 
 ## Memory Usage
 
-This library was uses only PyTorch array operations at the expense of memory consumption.  The peak memory usage in GB can be approximated with `examples/memory_usage.py`
+This library was uses only PyTorch array operations for implementation simplicity and speed at the expense of memory consumption.  The peak memory usage in GB can be approximated with `examples/memory_usage.py`
 
 ``` python
 >>> %run ~/examples/memory_usage.py
