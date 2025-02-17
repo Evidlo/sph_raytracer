@@ -17,8 +17,10 @@ __all__ = ['SphericalGrid', 'ConeRectGeom', 'ConeCircGeom',
            'ViewGeomCollection', 'ViewGeom', 'ParallelGeom'
            ]
 
-Size = namedtuple('Size', ['r', 'e', 'a'])
-Shape = namedtuple('Shape', ['r', 'e', 'a'])
+StaticSize = namedtuple('Size', ['r', 'e', 'a'])
+StaticShape = namedtuple('Shape', ['r', 'e', 'a'])
+DynamicSize = namedtuple('Size', ['t', 'r', 'e', 'a'])
+DynamicShape = namedtuple('Shape', ['t', 'r', 'e', 'a'])
 
 FTYPE = tr.float64
 
@@ -31,38 +33,47 @@ class SphericalGrid:
     or by manually specifying the locations of all voxels.
 
     Args:
+        size_t (tuple[float]): Temporal extent of grid (t_min, t_max) with units determined
+            by `timeunit`
         size_r (tuple[float]): Radial extent of grid (r_min, r_max) with units of distance.
         size_e (tuple[float]): Elevational extent of grid (e_min, e_max) with units of radians.
         size_a (tuple[float]): Azimuthal extent of grid (e_min, e_max) with units of radians.
-        shape (tuple[int]): shape of spherical grid (N rad. bins, N elev. bins, N az. bins)
+        shape (tuple[int]): shape of spherical grid (N time bins, N rad. bins, N elev. bins, N az. bins)
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
+        t (ndarray[datetime64], optional): manually specify temporal samples.
         r_b (ndarray, optional): manually specify radial shell boundaries.
         e_b (ndarray, optional): manually specify elevation cone boundaries
             in radians [0,π] (measured from +Z axis).
         a_b (ndarray, optional): manually specify azimuth plane boundaries
             in radians [-π,π] (measured from +X axis)
+        timeunit (str, optional): unit of time values.  Default 's' (seconds)
+            See https://numpy.org/devdocs/reference/arrays.datetime.html#arrays-dtypes-timeunits
 
     Attributes:
         shape (tuple[int])
+        t (tensor[int]): sample times
         r (tensor[float]): radial bin centers
         e (tensor[float]): elevation bin centers
         a (tensor[float]): azimuth bin centers
         r_b (tensor[float])
         e_b (tensor[float])
         a_b (tensor[float])
-        size: (tuple[tuple[float]])
+        size (tuple[tuple[float]])
+        timeunit (str)
+        dynamic (bool): whether grid is dynamic
 
     Usage:
-        SphericalGrid(((3, 25), (0, tr.pi), (-tr.pi, tr.pi)), (50, 50, 50))
+        SphericalGrid((0, 1), (3, 25), (0, tr.pi), (-tr.pi, tr.pi), (10, 50, 50, 50))
         SphericalGrid(
+            t=tr.linspace(0, 1, 10)
             r_b=tr.linspace(3, 25, 51),
             e_b=tr.linspace(0, tr.pi, 51),
             a_b=tr.linspace(-tr.pi, tr.pi, 51)
         )
 
     Below is an illustration of where grid indices are located relative to
-    voxel indices for a volume of shape (2, 2, 4)
+    voxel indices for a volume of shape (T, 2, 2, 4)
 
              .....
 
@@ -92,18 +103,36 @@ class SphericalGrid:
     """
 
     def __init__(
-            self, size_r=(0, 1), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi), shape=(50, 50, 50), spacing='lin',
-            r_b=None, e_b=None, a_b=None, rs_b=None, phis_b=None, thetas_b=None):
-        size = Size(size_r, size_e, size_a)
-        shape = Shape(*shape)
+            self, shape=(50, 50, 50),
+            size_t=(0, 1), size_r=(0, 1), size_e=(0, tr.pi), size_a=(-tr.pi, tr.pi),
+            spacing='lin',
+            t=None, r_b=None, e_b=None, a_b=None,
+            # FIXME: deprecated args
+            rs_b=None, phis_b=None, thetas_b=None):
 
-        # FIXME: deleteme
+        # static volume
+        if len(shape) == 3:
+            size = StaticSize(size_r, size_e, size_a)
+            shape = StaticShape(*shape[-3:])
+            self.dynamic = False
+        elif len(shape) == 4:
+            size = DynamicSize(size_t, size_r, size_e, size_a)
+            shape = DynamicShape(*shape)
+            self.dynamic = True
+        else:
+            raise ValueError("shape must be 3D or 4D")
+
+        # FIXME: deprecated arguments: phis_b, thetas_b, rs_b
         if (rs_b is not None) and (phis_b is not None) and (thetas_b is not None):
             r_b, e_b, a_b = rs_b, phis_b, thetas_b
 
         # infer shape and size if grid is manually specified
         if (r_b is not None) and (e_b is not None) and (a_b is not None):
-            shape = Shape(len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
+            if t is None:
+                shape = StaticShape(len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
+            else:
+                shape = DynamicShape(len(t), len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
+
             size_r = float(min(r_b)), float(max(r_b))
             size_e = float(min(e_b)), float(max(e_b))
             size_a = float(min(a_b)), float(max(a_b))
@@ -115,6 +144,8 @@ class SphericalGrid:
 
         # otherwise compute grid
         elif (shape is not None) and (size is not None):
+            if len(shape) == 4:
+                t = tr.linspace(size.t[0], size.t[1], shape.t, dtype=tr.float64)
             if spacing == 'log':
                 r_b = tr.logspace(math.log10(size.r[0]), math.log10(size.r[1]), shape.r + 1, dtype=tr.float64)
                 r = tr.sqrt(r_b[1:] * r_b[:-1])
@@ -136,20 +167,18 @@ class SphericalGrid:
         self.shape = shape
         self.spacing = spacing
         self.r_b, self.e_b, self.a_b = r_b, e_b, a_b
-        self.r, self.e, self.a = r, e, a
+        self.t, self.r, self.e, self.a = t, r, e, a
 
-        # FIXME: deleteme
+        # FIXME: deleteme, deprecated args
         self.rs_b, self.phis_b, self.thetas_b = r_b, e_b, a_b
         self.rs, self.phis, self.thetas = r, e, a
 
     def __repr__(self):
-        s, sh = self.size, self.shape
-        size = f"(({s[0][0]:.1f}, {s[0][1]:.1f}), ({s[1][0]:.1f}, {s[1][1]:.1f}), ({s[2][0]:.1f}, {s[2][1]:.1f}))"
-        shape = f"({sh[0]}, {sh[1]}, {sh[2]})"
-        string = f"""{self.__class__.__name__}(
-            size={size},
-            shape={tuple(self.shape)}
-        )"""
+        string = f"{self.__class__.__name__}(\n"
+        string += f'    shape={tuple(self.shape)},\n'
+        for k, v in self.size._asdict().items():
+            string += f'    size_{k}=({v[0]:.2f}, {v[1]:.2f}),\n'
+        string += ')'
         from inspect import cleandoc
         return cleandoc(string)
 

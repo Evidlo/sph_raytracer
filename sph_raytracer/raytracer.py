@@ -69,7 +69,7 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
             (*num_rays, max_int_voxels)
 
 
-    where `max_int_voxels` is `2*grid.shape[0] + 2*grid.shape[1] + grid.shape[2]`
+    where `max_int_voxels` is `2*grid.shape.r + 2*grid.shape.e + grid.shape.a`
     and `num_rays` in the shape of the detector
 
     """
@@ -158,12 +158,12 @@ def trace_indices(grid, xs, rays, ftype=FTYPE, itype=ITYPE, device=DEVICE,
         all_lens_s[invalid] = 0
 
         # set invalid regions to 0 and zero associated segment length
-        all_lens_s[all_regs_s[0, ...] > grid.shape[0] - 1] = 0
-        all_lens_s[all_regs_s[1, ...] > grid.shape[1] - 1] = 0
-        all_lens_s[all_regs_s[2, ...] > grid.shape[2] - 1] = 0
-        # all_regs_s[all_regs_s[0, ...] > grid.shape[0] - 1] = 0
-        # all_regs_s[all_regs_s[1, ...] > grid.shape[1] - 1] = 0
-        # all_regs_s[all_regs_s[2, ...] > grid.shape[2] - 1] = 0
+        all_lens_s[all_regs_s[0, ...] > grid.shape.r - 1] = 0
+        all_lens_s[all_regs_s[1, ...] > grid.shape.e - 1] = 0
+        all_lens_s[all_regs_s[2, ...] > grid.shape.a - 1] = 0
+        # all_regs_s[all_regs_s[0, ...] > grid.shape.r - 1] = 0
+        # all_regs_s[all_regs_s[1, ...] > grid.shape.e - 1] = 0
+        # all_regs_s[all_regs_s[2, ...] > grid.shape.a - 1] = 0
 
         all_lens_s[all_regs_s[0, ...] < 0] = 0
         all_lens_s[all_regs_s[1, ...] < 0] = 0
@@ -632,14 +632,14 @@ def find_starts(grid, xs, ftype=FTYPE, device=DEVICE):
     a_reg = tr.searchsorted(a_b, xs_a, right=True) - 1
 
     # consider rays lying on top of last geometry as valid and set appropriate index
-    r_reg = tr.where(xs_r == r_b[-1], grid.shape[0] - 1, r_reg)
-    e_reg = tr.where(xs_e == e_b[-1], grid.shape[1] - 1, e_reg)
-    a_reg = tr.where(xs_a == a_b[-1], grid.shape[2] - 1, a_reg)
+    r_reg = tr.where(xs_r == r_b[-1], grid.shape.r - 1, r_reg)
+    e_reg = tr.where(xs_e == e_b[-1], grid.shape.e - 1, e_reg)
+    a_reg = tr.where(xs_a == a_b[-1], grid.shape.a - 1, a_reg)
 
     # if ray starts in an invalid region, set the region index to -1
-    r_reg[r_reg == grid.shape[0]] = -1
-    e_reg[e_reg == grid.shape[1]] = -1
-    a_reg[a_reg == grid.shape[2]] = -1
+    r_reg[r_reg == grid.shape.r] = -1
+    e_reg[e_reg == grid.shape.e] = -1
+    a_reg[a_reg == grid.shape.a] = -1
 
     return tr.stack((r_reg, e_reg, a_reg), axis=0)
 

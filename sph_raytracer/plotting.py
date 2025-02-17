@@ -98,6 +98,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
     Returns:
         matplotlib.animation.ArtistAnimation
     """
+    # FIXME: function doesn't work with channels
     ispolar = lambda g: isinstance(g, ConeCircGeom)
     isiterable = lambda g: isinstance(g, (ViewGeomCollection, Iterable))
     if polar is None:
@@ -125,6 +126,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
             # realign polar plot up direction
             # ax.set_theta_zero_location('N')
             theta, r = np.meshgrid(theta_lin, r_lin)
+            ax.grid(alpha=.2)
             return ax.pcolormesh(theta, r, img, **kwargs)
     else:
         def imshow(img, geom, **kwargs):
@@ -197,55 +199,91 @@ def sph2cart(rea):
     return xyz
 
 
-def preview3d(volume, grid, shape=(256, 256), device='cpu'):
+def preview3d(volume, grid, shape=(256, 256), orbit=True, elev=60, azim=0, device='cpu'):
     """Generate 3D animation of a static volume by making circular orbit around object
+
+    The number of frames is equal to the number of time bins (dynamic volume), or number
+    of azimuth bins (static volume)
+
+    This function cheats by reusing the same view geometry for every frame and just
+    rotating the volume by one azimuth bin, greatly reducing memory and CPU overhead.
 
     Args:
         volume (tensor): volume to preview of shape (width, height, depth) or
             (width, height, depth, num_channels) for multi-channel measurement
         grid (SphericalGrid): grid where volume is defined
         shape (tuple[int]): shape of output images
+        orbit (bool): orbit around volume (default True)
+        elev (float): initial camera elevation (degrees, default 60°)
+        azim (float): initial camera azimuth (degrees, default 0°)
+        device (str): PyTorch device to use for computing preview (default 'cpu')
 
     Returns:
         tensor: stack of images containing rotating preview of volume with shape
-            (grid.shape.a, *shape) if volume is single channel, or
-            (grid.shape.a, *shape, num_channels) if multiple channels
+            (grid.shape.a, *shape) if volume is static single channel, or
+            (grid.shape.a, *shape, num_channels) if static multiple channels, or
+            (grid.shape.t, *shape, num_channels) if dynamic single channel, or
+            (grid.shape.t, *shape, num_channels) if dynamic multiple channels
 
-    Usage
+    Example returned shapes:
+        # dynamic multi channel (RGB)
+        volume:   (20, 50, 50, 50, 3)
+        grid:     (20, 50, 50, 50)
+        returned: (20, 256, 256, 3)
+
+        # static multi channel (RGB)
+        volume:   (50, 50, 50, 3)
+        grid:     (50, 50, 50)
+        returned: (50, 256, 256, 3)
+
+        # dynamic single channel
+        volume:   (20, 50, 50, 50)
+        grid:     (20, 50, 50, 50)
+        returned: (20, 256, 256)
+
+        # static single channel
+        volume:   (50, 50, 50)
+        grid:     (50, 50, 50)
+        returned: (50, 256, 256)
     """
 
-    if not volume.ndim in (3, 4):
+    if not volume.ndim in (3, 4, 5):
         raise ValueError(f"Invalid shape for volume: {tuple(volume.shape)}")
-
-    # if volume.ndim == 4:
-    #     g = SphericalGrid(shape=volume.shape[:-1])
-    # elif volume.ndim == 3:
-    #     g = SphericalGrid(shape=volume.shape)
-    # else:
-    #     raise ValueError(f"Invalid shape for volume: {tuple(volume.shape)}")
+    if not (volume.ndim - len(grid.shape)) <= 1:
+        # volume may have 1 more dimension than grid if channels are present
+        raise ValueError("volume/grid shape mismatch")
 
     # rotate volume instead of creating many views
     # offsets = tr.div(tr.arange(positions) * grid.shape.a, positions, rounding_mode='floor')
-    offsets = tr.arange(grid.shape.a)
+    offsets = range(grid.shape.t if grid.dynamic else grid.shape.a)
 
     # offset view by 1/2 azimuth voxel to avoid visual artifacts
-    pos = sph2cart((4 * grid.size.r[1], np.deg2rad(60), 0.125 * 2 * np.pi / grid.shape.a))
+    pos = sph2cart((
+        4 * grid.size.r[1],
+        np.deg2rad(elev),
+        0.125 * 2 * np.pi / grid.shape.a + np.deg2rad(azim)
+    ))
     geom = ConeRectGeom(shape, pos=pos, fov=(30, 30))
     # geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], halfaz, 1 * grid.size.r[1]), fov=(30, 30))
     # FIXME: flatten this too?
     op = Operator(grid, geom, _flatten=False)
 
     # if multiple channels, process each separately
-    if volume.ndim == 4:
-        rotvol = tr.empty((grid.shape.a, *grid.shape, 3))
+    if volume.ndim == len(grid.shape) + 1:
+        rotvol = tr.empty((grid.shape.a, *grid.shape[-3:], volume.shape[-1]))
         for i, offset in enumerate(offsets):
-            rotvol[i] = tr.roll(volume, (0, 0, int(offset), 0), dims=(0, 1, 2, 3))
+            vol = volume[offset] if grid.dynamic else volume
+            # roll azimuth dimension
+            rotvol[i] = tr.roll(vol, offset if orbit else 0, dims=[-2])
         results = []
         for chan in tr.moveaxis(rotvol, -1, 0):
             results.append(op(chan))
         return tr.stack(results, axis=-1)
-    else:
-        rotvol = tr.empty((len(offsets), *grid.shape))
+    # only a single channel
+    elif volume.ndim == len(grid.shape):
+        rotvol = tr.empty((len(offsets), *grid.shape[-3:]))
         for i, offset in enumerate(offsets):
-            rotvol[i] = tr.roll(volume, (0, 0, int(offset)), dims=(0, 1, 2))
+            vol = volume[offset] if grid.dynamic else volume
+            # roll azimuth dimension
+            rotvol[i] = tr.roll(vol, offset if orbit else 0, dims=[-1])
         return op(rotvol)
