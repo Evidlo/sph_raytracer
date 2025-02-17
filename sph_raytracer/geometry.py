@@ -128,15 +128,17 @@ class SphericalGrid:
 
         # infer shape and size if grid is manually specified
         if (r_b is not None) and (e_b is not None) and (a_b is not None):
-            if t is None:
-                shape = StaticShape(len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
-            else:
-                shape = DynamicShape(len(t), len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
-
             size_r = float(min(r_b)), float(max(r_b))
             size_e = float(min(e_b)), float(max(e_b))
             size_a = float(min(a_b)), float(max(a_b))
-            size = Size(size_r, size_e, size_a)
+
+            if t is None:
+                shape = StaticShape(len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
+                size = StaticSize(size_r, size_e, size_a)
+            else:
+                shape = DynamicShape(len(t), len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
+                size = DynamicSize(size_t, size_r, size_e, size_a)
+
 
             # enforce float64 dtype
             r_b, e_b, a_b = [tr.asarray(x, dtype=tr.float64) for x in (r_b, e_b, a_b)]
