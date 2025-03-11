@@ -142,6 +142,7 @@ class SphericalGrid:
                 t = tr.asarray(t, dtype=tr.int64)
                 shape = DynamicShape(len(t), len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
                 size = DynamicSize(size_t, size_r, size_e, size_a)
+                self.dynamic = True
 
 
             # enforce float64 dtype
@@ -208,9 +209,9 @@ class SphericalGrid:
         # Make data
         u = tr.linspace(0, 2 * tr.pi, 20)
         v = tr.linspace(0, tr.pi, 20)
-        x = tr.outer(tr.cos(u), tr.sin(v)) * self.size[0][1]
-        y = tr.outer(tr.sin(u), tr.sin(v)) * self.size[0][1]
-        z = tr.outer(tr.ones_like(u), tr.cos(v)) * self.size[0][1]
+        x = tr.outer(tr.cos(u), tr.sin(v)) * self.size.r[1]
+        y = tr.outer(tr.sin(u), tr.sin(v)) * self.size.r[1]
+        z = tr.outer(tr.ones_like(u), tr.cos(v)) * self.size.r[1]
 
         # Plot the surface
         artist = ax.plot_surface(x, y, z, zorder=99)
@@ -504,6 +505,7 @@ class ConeRectGeom(ViewGeom):
 
         corners = self.rays[(-1, -1, 0, 0), (0, -1, -1, 0)].clone()
         corners *= tr.linalg.norm(self.pos)
+        corners += self.pos
 
         cone_lines = tr.stack((self.pos.broadcast_to(corners.shape), corners), dim=1)
         plane_lines = tr.stack((corners, corners.roll(-1, dims=0)), dim=1)
@@ -557,6 +559,7 @@ class ConeCircGeom(ConeRectGeom):
 
         outer = self.rays[-1].clone()
         outer *= tr.linalg.norm(self.pos)
+        outer += self.pos
 
         # sample up to 5 points on outer edge
         sampling = math.ceil(len(outer) / 4)

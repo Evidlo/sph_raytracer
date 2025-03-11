@@ -175,10 +175,11 @@ def test_a():
 
 def test_sphericalgrid_static():
     grid = SphericalGrid(shape=(10, 11, 12))
-    assert grid.dynamic == False
+    assert not grid.dynamic
     assert (len(grid.r_b), len(grid.e_b), len(grid.a_b)) == (11, 12, 13)
     grid = SphericalGrid(r_b=[1, 2], e_b=[1, 2, 3], a_b=[1, 2, 3, 4])
     assert grid.shape == (1, 2, 3)
+    assert not grid.dynamic
     # check grid boundaries and centers
     def check_bounds(grid):
         assert len(grid.r) == len(grid.r_b) - 1
@@ -206,10 +207,11 @@ def test_sphericalgrid_static():
 
 def test_sphericalgrid_dynamic():
     grid = SphericalGrid(shape=(9, 10, 11, 12))
-    assert grid.dynamic == True
+    assert grid.dynamic
     assert (len(grid.t), len(grid.r_b), len(grid.e_b), len(grid.a_b)) == (9, 11, 12, 13)
     grid = SphericalGrid(t=[1], r_b=[1, 2], e_b=[1, 2, 3], a_b=[1, 2, 3, 4])
     assert grid.shape == (1, 1, 2, 3)
+    assert grid.dynamic
 
     for x in (grid.t, grid.r, grid.e, grid.a):
         assert type(x) is tr.Tensor
