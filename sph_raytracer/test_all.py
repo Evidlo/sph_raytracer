@@ -205,6 +205,8 @@ def test_sphericalgrid_static():
     for x in (grid.r, grid.e, grid.a):
         assert type(x) is tr.Tensor
 
+    assert grid.mesh.ndim == 4, "Invalid mesh dimensions"
+
 def test_sphericalgrid_dynamic():
     grid = SphericalGrid(shape=(9, 10, 11, 12))
     assert grid.dynamic
@@ -215,6 +217,8 @@ def test_sphericalgrid_dynamic():
 
     for x in (grid.t, grid.r, grid.e, grid.a):
         assert type(x) is tr.Tensor
+
+    assert grid.mesh.ndim == 5, "Invalid mesh dimensions"
 
 def test_find_starts():
     grid = SphericalGrid(shape=(5, 5, 1))

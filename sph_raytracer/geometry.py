@@ -38,7 +38,8 @@ class SphericalGrid:
         size_r (tuple[float]): Radial extent of grid (r_min, r_max) with units of distance.
         size_e (tuple[float]): Elevational extent of grid (e_min, e_max) with units of radians.
         size_a (tuple[float]): Azimuthal extent of grid (e_min, e_max) with units of radians.
-        shape (tuple[int]): shape of spherical grid (N time bins, N rad. bins, N elev. bins, N az. bins)
+        shape (tuple[int]): shape of spherical grid (N_t, N_r, N_e, N_a)
+            or (N_r, N_e, N_a) if static
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
         t (ndarray, optional): manually specify temporal samples.
@@ -221,6 +222,14 @@ class SphericalGrid:
         ax.set_zlabel('Z')
 
         return artist
+
+    def mesh(self):
+        """tensor(float): Dense 3D or 4D (if dynamic) mesh of grid coordinates
+        of shape (N_t, N_r, N_e, N_a, 4) dynamic or (N_r, N_e, N_a, 3) static
+        """
+
+        coords = ([self.t] if self.dynamic else []) + [self.r, self.e, self.a]
+        return t.stack(t.meshgrid(coords, indexing='ij'), dim=-1)
 
     # @property
     # def shape(self):
