@@ -139,7 +139,7 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
             return ax.imshow(img, extent=extent, **kwargs)
 
     if not {'vmin', 'vmax'} <= kwargs.keys():
-        kwargs['vmin'], kwargs['vmax'] = images.min(), images.max()
+        kwargs['vmin'], kwargs['vmax'] = np.nanmin(images), np.nanmax(images)
     if images.ndim == 3:
         # use same ViewGeom for all images if a ViewGeomCollection not provided
         geom = geom if isiterable(geom) else repeat(geom)
