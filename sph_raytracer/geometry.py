@@ -140,7 +140,7 @@ class SphericalGrid:
                 size = StaticSize(size_r, size_e, size_a)
             else:
                 size_t = float(min(t)), float(max(t))
-                t = tr.asarray(t, dtype=tr.int64)
+                t = tr.asarray(t, dtype=tr.float64)
                 shape = DynamicShape(len(t), len(r_b) - 1, len(e_b) - 1, len(a_b) - 1)
                 size = DynamicSize(size_t, size_r, size_e, size_a)
                 self.dynamic = True
@@ -177,6 +177,11 @@ class SphericalGrid:
         self.r_b, self.e_b, self.a_b = r_b, e_b, a_b
         self.t, self.r, self.e, self.a = t, r, e, a
         self.timeunit = timeunit
+
+        if self.dynamic:
+            self.coords = {'t':self.t, 'r':self.r, 'e':self.e, 'a':self.a}
+        else:
+            self.coords = {'r':self.r, 'e':self.e, 'a':self.a}
 
         # FIXME: deleteme, deprecated args
         self.rs_b, self.phis_b, self.thetas_b = r_b, e_b, a_b
@@ -223,13 +228,19 @@ class SphericalGrid:
 
         return artist
 
+    @property
     def mesh(self):
         """tensor(float): Dense 3D or 4D (if dynamic) mesh of grid coordinates
         of shape (N_t, N_r, N_e, N_a, 4) dynamic or (N_r, N_e, N_a, 3) static
         """
 
         coords = ([self.t] if self.dynamic else []) + [self.r, self.e, self.a]
-        return t.stack(t.meshgrid(coords, indexing='ij'), dim=-1)
+        return tr.stack(tr.meshgrid(coords, indexing='ij'), dim=-1)
+
+    @property
+    def nptime(self):
+        """ndarray[datetime64]: Return times as Numpy datetime"""
+        return self.t.numpy().astype(f'datetime64[{self.timeunit}]')
 
     # @property
     # def shape(self):
