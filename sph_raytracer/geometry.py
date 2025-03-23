@@ -33,13 +33,13 @@ class SphericalGrid:
     or by manually specifying the locations of all voxels.
 
     Args:
+        shape (tuple[int]): shape of spherical grid (N_t, N_r, N_e, N_a)
+            or (N_r, N_e, N_a) if static
         size_t (tuple[float]): Temporal extent of grid (t_min, t_max) with units determined
             by `timeunit`
         size_r (tuple[float]): Radial extent of grid (r_min, r_max) with units of distance.
         size_e (tuple[float]): Elevational extent of grid (e_min, e_max) with units of radians.
         size_a (tuple[float]): Azimuthal extent of grid (e_min, e_max) with units of radians.
-        shape (tuple[int]): shape of spherical grid (N_t, N_r, N_e, N_a)
-            or (N_r, N_e, N_a) if static
         spacing (str): if `size` and `shape` given, space the radial bins linearly (spacing='lin')
             or logarithmically (spacing='log')
         t (ndarray, optional): manually specify temporal samples.
@@ -524,7 +524,7 @@ class ConeRectGeom(ViewGeom):
         # draw FOV corners
 
         corners = self.rays[(-1, -1, 0, 0), (0, -1, -1, 0)].clone()
-        corners *= tr.linalg.norm(self.pos)
+        corners *= 2 * tr.linalg.norm(self.pos)
         corners += self.pos
 
         cone_lines = tr.stack((self.pos.broadcast_to(corners.shape), corners), dim=1)
@@ -578,16 +578,21 @@ class ConeCircGeom(ConeRectGeom):
         """(segments, widths, colors): Wireframe for 3D visualization"""
 
         outer = self.rays[-1].clone()
-        outer *= tr.linalg.norm(self.pos)
+        outer *= 2 * tr.linalg.norm(self.pos)
         outer += self.pos
+
+        inner = self.rays[0].clone()
+        inner *= 2 * tr.linalg.norm(self.pos)
+        inner += self.pos
 
         # sample up to 5 points on outer edge
         sampling = math.ceil(len(outer) / 4)
         cone_lines = tr.stack((self.pos.broadcast_to(outer[::sampling].shape), outer[::sampling]), dim=1)
         # endplane
-        plane_lines = tr.stack((outer, outer.roll(-1, dims=0)), dim=1)
+        outer_lines = tr.stack((outer, outer.roll(-1, dims=0)), dim=1)
+        inner_lines = tr.stack((inner, inner.roll(-1, dims=0)), dim=1)
 
-        segments = tr.concat((cone_lines, plane_lines))
+        segments = tr.concat((cone_lines, inner_lines, outer_lines))
         return [[segments, tr.ones(len(segments)), ['black'] * len(segments)]]
 
 

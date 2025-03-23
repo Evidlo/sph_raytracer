@@ -215,6 +215,8 @@ def test_sphericalgrid_dynamic():
     assert grid.shape == (1, 1, 2, 3)
     assert grid.dynamic
 
+    assert len(grid.nptime) == grid.shape.t, "Incorrect time shape"
+
     for x in (grid.t, grid.r, grid.e, grid.a):
         assert type(x) is tr.Tensor
 
