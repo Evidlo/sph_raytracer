@@ -35,6 +35,9 @@ class Model:
         """Shape of coeffs"""
         raise NotImplementedError
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({tuple(self.grid.shape)})'
+
 
 class FullyDenseModel(Model):
     """Parameters themselves are volume density values"""
