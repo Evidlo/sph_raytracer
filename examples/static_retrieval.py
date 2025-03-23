@@ -54,7 +54,7 @@ m = FullyDenseModel(grid)
 # see loss.py for how to define your own loss/regularization
 loss_fns = [1 * SquareLoss(), 1 * NegRegularizer()]
 
-retrieved = gd(op, meas, m, loss_fns=loss_fns, num_iterations=100)
+retrieved = gd(op, meas, m, lr=1e-1, loss_fns=loss_fns, num_iterations=100)
 
 # ----- Plotting -----
 # %% plot
