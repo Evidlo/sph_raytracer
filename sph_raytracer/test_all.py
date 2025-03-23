@@ -303,15 +303,15 @@ def test_conerectgeom():
 
 
 def test_conecircgeom():
-    g = ConeCircGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=45)
+    g = ConeCircGeom((11, 11), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(0, 45))
 
     # check fov angles
-    assert check(tr.dot(g.rays[-1, 0], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov)))
+    assert check(tr.dot(g.rays[-1, 0], g.rays[-1, 5]), tr.cos(tr.deg2rad(g.fov[1])))
     # check look dir
     assert check(g.rays[0, 0], g.lookdir)
 
     # single pixel detector
-    g = ConeCircGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=45)
+    g = ConeCircGeom((1, 1), (1, 0, 0), (-1, 0, 0), (0, 1, 0), fov=(0, 45))
     # check lookdir
     assert check(g.rays[0, 0], g.lookdir)
     # generate wireframe

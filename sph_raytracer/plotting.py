@@ -120,8 +120,8 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
                 ax.yaxis.set_major_formatter(deg_format)
                 fov = geom.fov
             else:
-                fov = 1
-            r_lin = np.linspace(0, fov/2, images.shape[-2] + 1)
+                fov = (0, 1)
+            r_lin = np.linspace(fov[0]/2, fov[1]/2, images.shape[-2] + 1)
             theta_lin = np.linspace(0, 2*np.pi, images.shape[-1] + 1)
             # realign polar plot up direction
             # ax.set_theta_zero_location('N')

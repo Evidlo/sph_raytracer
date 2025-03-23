@@ -34,7 +34,7 @@ for theta in t.linspace(0, 2*t.pi, grid.shape.t):
         ConeCircGeom(
             shape=(100, 50),
             pos=(5 * t.cos(theta), 5 * t.sin(theta), 1),
-            fov=45
+            fov=(0, 45)
         )
     )
 

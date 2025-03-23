@@ -542,18 +542,22 @@ class ConeCircGeom(ConeRectGeom):
         pos (tuple[float]): XYZ position of detector
         lookdir (tuple[float]): detector pointing direction
         updir (tuple[float]): direction of detector +Y
-        fov (float): detector field of view
+        fov (tuple[float]): detector field of view (inner_fov, outer_fov)
     """
 
-    def __init__(self, *args, fov=45, spacing='lin', **kwargs):
+    def __init__(self, *args, fov=(0, 45), spacing='lin', **kwargs):
         super().__init__(*args, fov=fov, **kwargs)
 
         # build r, theta grid
         # https://math.stackexchange.com/questions/73237/parametric-equation-of-a-circle-in-3d-space
+        rlim = [
+            tr.tan(tr.deg2rad(self.fov[0] / 2)),
+            tr.tan(tr.deg2rad(self.fov[1] / 2))
+        ]
         if spacing == 'lin':
-            self.r = tr.linspace(0, tr.tan(tr.deg2rad(self.fov / 2)), self.shape[0])
+            self.r = tr.linspace(*rlim, self.shape[0])
         elif spacing == 'log':
-            self.r = tr.logspace(0, tr.tan(tr.deg2rad(self.fov / 2)), self.shape[0])
+            self.r = tr.logspace(*rlim, self.shape[0])
         else:
             raise ValueError(f"Invalid spacing {spacing}")
 

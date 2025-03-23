@@ -9,3 +9,4 @@ def test_examples():
 
     exec(open('examples/single_vantage.py').read())
     exec(open('examples/static_retrieval.py').read())
+    exec(open('examples/dynamic_measurements.py').read())
