@@ -147,7 +147,8 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
         result = animation.ArtistAnimation(ax.figure, artists, interval=200)
     elif images.ndim == 2:
         artists = [[imshow(images, geom, **kwargs)]]
-        result = artists[0][0]
+        # result = artists[0][0]
+        result = fig
     else:
         raise ValueError("Invalid images shape")
 
