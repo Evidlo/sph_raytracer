@@ -283,7 +283,9 @@ def test_operator():
     geom = ViewGeom([-100, 0, 0], [1, 0, 0])
     grid = SphericalGrid(shape=(25, 25, 25), size_r=(5, 10))
     op = Operator(grid, geom, _flatten=False)
-
+    # trace multidimensional static volume
+    result = op(tr.rand((5,) + grid.shape))
+    assert result.shape == (5,), "Incorrect shape for multi-channel volume"
 
 def test_conerectgeom():
     g = ConeRectGeom((11, 11), (4, 0, 1), fov=(23, 45))

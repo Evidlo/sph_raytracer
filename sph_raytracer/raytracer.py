@@ -717,7 +717,7 @@ class Operator:
         """
         r, e, a = self.regs
         # if dynamic volume density:
-        if density.ndim == 4:
+        if self.grid.dynamic:
             t = tr.arange(len(density))[:, None, None, None]
             result = density[t, r, e, a]
             result *= self.lens
@@ -735,7 +735,7 @@ class Operator:
                 result_squeezed = result_squeezed.view(self.orig_shape).sum(axis=-1)
                 return result_squeezed
             else:
-                return (density[r, e, a] * self.lens).sum(axis=-1)
+                return (density[..., r, e, a] * self.lens).sum(axis=-1)
 
     def T(self, line_integrations):
         """Adjoint of raytrace line integration operator.  Back projects line integrals to a density
@@ -784,8 +784,6 @@ class Operator:
         """Generate Matplotlib wireframe plot for this object
 
         Returns:
-            grid (SphericalGrid, optional): spherical grid extent/resolution information
-            geom (ViewGeom, optional): measurement locations and rays
             matplotlib Animation if dynamic density or multiple vantages
             matplotlib Axes if static density and single vantage
         """
