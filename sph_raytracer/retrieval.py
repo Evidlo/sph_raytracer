@@ -22,7 +22,7 @@ def detach_loss(loss):
     return float(loss.detach().cpu()) if isinstance(loss, t.Tensor) else loss
 
 def gd(f, y, model, coeffs=None, num_iterations=100,
-       loss_fns=[SquareLoss()], optim=t.optim.Adam,
+       loss_fns=[SquareLoss()], optim=t.optim.Adam, optim_vars=None,
        progress_bar=True, device=None, **kwargs
        ):
     """Gradient descent to minimize loss function.  Instantiates and optimizes a set of coefficients
@@ -43,6 +43,7 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
         loss_fns (list[science.Loss]): custom loss functions which
             accept (f, y, density, coeffs) as args.  Losses are summed
         optim (pytorch Optimizer): optimizer.  optional.  defaults to 'Adam'
+        optim_vars (list[tensor]): list of variables to optimize
         progress_bar (bool): show iteration count on tqdm progress bar
         device (None, str, or torch.device): optional device to use for coefficients.
             Otherwise `f.device` is used
@@ -68,12 +69,16 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
             dtype=t.float64
         )
     else:
-        coeffs.requires_grad_()
+        pass
+        # coeffs.requires_grad_()
+
+    if optim_vars is None:
+        optim_vars = [coeffs]
 
     best_loss = float('inf')
     best_coeffs = None
 
-    optim = optim([coeffs], **kwargs)
+    optim = optim(optim_vars, **kwargs)
     # initialize empty list for logging loss values each iteration
     losses = {loss_fn: [] for loss_fn in loss_fns}
     # perform requested number of iterations
