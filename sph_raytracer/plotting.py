@@ -121,8 +121,13 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
                 fov = geom.fov
             else:
                 fov = (0, 1)
-            r_lin = np.linspace(fov[0]/2, fov[1]/2, images.shape[-2] + 1)
-            theta_lin = np.linspace(0, 2*np.pi, images.shape[-1] + 1)
+            # FIXME: remove carruthers specific hack
+            if hasattr(geom, 'sb'):
+                r_lin = geom.sb.rad_ctrs / (geom.sb.npix / 2) * geom.fov[1]
+                theta_lin = np.deg2rad(geom.sb.theta_ctrs)
+            else:
+                r_lin = np.linspace(fov[0]/2, fov[1]/2, images.shape[-2] + 1)
+                theta_lin = np.linspace(0, 2*np.pi, images.shape[-1] + 1)
             # realign polar plot up direction
             # ax.set_theta_zero_location('N')
             theta, r = np.meshgrid(theta_lin, r_lin)
