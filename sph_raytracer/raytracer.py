@@ -735,7 +735,25 @@ class Operator:
                 result_squeezed = result_squeezed.view(self.orig_shape).sum(axis=-1)
                 return result_squeezed
             else:
-                return (density[..., r, e, a] * self.lens).sum(axis=-1)
+                # FIXME: batched uses far less memory - use this elsewhere too
+                # return (density[..., r, e, a] * self.lens).sum(axis=-1)
+                # Assuming x and lens are PyTorch tensors
+                def batched_lookup(density, r, e, a, lens):
+                    return (density[..., r, e, a] * lens).sum(dim=-1)
+
+                batched_fn = tr.vmap(
+                    tr.vmap(
+                        batched_lookup,
+                        in_dims=(None, 0, 0, 0, 0),
+                        out_dims=1,
+                        chunk_size=8
+                    ),
+                    in_dims=(None, 0, 0, 0, 0),
+                    out_dims=1,
+                    chunk_size=32
+                )
+                result = batched_fn(density, r, e, a, self.lens)
+                return result
 
     def T(self, line_integrations):
         """Adjoint of raytrace line integration operator.  Back projects line integrals to a density
