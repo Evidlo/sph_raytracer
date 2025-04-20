@@ -75,6 +75,9 @@ def gd(f, y, model, coeffs=None, num_iterations=100,
     if optim_vars is None:
         optim_vars = [coeffs]
 
+    for var in optim_vars:
+        var.requires_grad_()
+
     best_loss = float('inf')
     best_coeffs = None
 
