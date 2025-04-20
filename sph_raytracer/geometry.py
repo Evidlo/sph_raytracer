@@ -178,11 +178,6 @@ class SphericalGrid:
         self.t, self.r, self.e, self.a = t, r, e, a
         self.timeunit = timeunit
 
-        if self.dynamic:
-            self.coords = {'t':self.t, 'r':self.r, 'e':self.e, 'a':self.a}
-        else:
-            self.coords = {'r':self.r, 'e':self.e, 'a':self.a}
-
         # FIXME: deleteme, deprecated args
         self.rs_b, self.phis_b, self.thetas_b = r_b, e_b, a_b
         self.rs, self.phis, self.thetas = r, e, a
@@ -190,6 +185,8 @@ class SphericalGrid:
     def __repr__(self):
         string = f"{self.__class__.__name__}(\n"
         string += f'    shape={tuple(self.shape)},\n'
+        # if self.dynamic:
+        #     string += f'    size_t=({self.nptime[0]}, {self.nptime[-1]})'
         for k, v in self.size._asdict().items():
             string += f'    size_{k}=({v[0]:.2f}, {v[1]:.2f}),\n'
         string += ')'
@@ -229,13 +226,20 @@ class SphericalGrid:
         return artist
 
     @property
+    def coords(self):
+        """"""
+        if self.dynamic:
+            return {'t':self.t, 'r':self.r, 'e':self.e, 'a':self.a}
+        else:
+            return {'r':self.r, 'e':self.e, 'a':self.a}
+
+    @property
     def mesh(self):
         """tensor(float): Dense 3D or 4D (if dynamic) mesh of grid coordinates
         of shape (N_t, N_r, N_e, N_a, 4) dynamic or (N_r, N_e, N_a, 3) static
         """
 
-        coords = ([self.t] if self.dynamic else []) + [self.r, self.e, self.a]
-        return tr.stack(tr.meshgrid(coords, indexing='ij'), dim=-1)
+        return tr.stack(tr.meshgrid(self.coords, indexing='ij'), dim=-1)
 
     @property
     def nptime(self):
