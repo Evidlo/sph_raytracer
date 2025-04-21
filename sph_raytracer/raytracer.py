@@ -661,7 +661,7 @@ class Operator:
     """
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice=PDEVICE,
-                 debug=False, debug_los=None, invalid=False, _flatten=False,
+                 debug=False, debug_los=None, invalid=False,
                  _compute=True):
         self.grid = grid
         self.geom = geom
@@ -677,7 +677,6 @@ class Operator:
                 ftype=ftype, itype=itype, device=device, pdevice=pdevice,
                 invalid=invalid, debug=debug, debug_los=debug_los
             )
-        self._flatten = _flatten
 
         # FIXME: should turn this check back on
         # see why zeroing out region index slows down operator
@@ -686,20 +685,6 @@ class Operator:
         #         tr.any(self.regs[1] < 0) or
         #         tr.any(self.regs[2] < 0)):
         #     raise ValueError("Invalid region indices detected")
-
-        if _flatten:
-            self.orig_shape = self.lens.shape
-            self.regs = (
-                self.regs[0] * grid.shape.e * grid.shape.a
-                + self.regs[1] * grid.shape.a
-                + self.regs[2]
-            ).flatten()
-            self.lens = self.lens.flatten()
-
-
-        # NOTE: we flatten regs and lens here because otherwise PyTorch uses too much memory
-        # self.orig_shape = self.regs.shape[:-1]
-        # self.regs, self.lens = self.regs.flatten(), self.lens.flatten()
 
         # if dynamic and not isinstance(geom, ViewGeomCollection):
         #     raise ValueError("geom must be ViewGeomCollection instance when dynamic=True")
@@ -719,23 +704,13 @@ class Operator:
         # if dynamic volume density:
         if self.grid.dynamic:
             t = tr.arange(len(density))[:, None, None, None]
-            result = density[t, r, e, a]
-            result *= self.lens
-            result = result.sum(axis=-1)
-            return result
-            # return (density[(t, *self.regs)] * self.lens).sum(axis=-1)
-            # NOTE: this is a flattened form of the above which uses less memory
-
-            # else:
-            #     return (density[:, r, e, a] * self.lens).sum(axis=-1)
         else:
-            if self._flatten:
-                result_squeezed = density.flatten()[self.regs]
-                result_squeezed *= self.lens
-                result_squeezed = result_squeezed.view(self.orig_shape).sum(axis=-1)
-                return result_squeezed
-            else:
-                return (density[..., r, e, a] * self.lens).sum(axis=-1)
+            t = Ellipsis
+
+        result = density[t, r, e, a]
+        result *= self.lens
+        result = result.sum(axis=-1)
+        return result
 
     def T(self, line_integrations):
         """Adjoint of raytrace line integration operator.  Back projects line integrals to a density

@@ -272,7 +272,7 @@ def preview3d(volume, grid, shape=(256, 256), orbit=True, elev=60, azim=0, devic
     geom = ConeRectGeom(shape, pos=pos, fov=(30, 30))
     # geom = ConeRectGeom(shape, pos=(4 * grid.size.r[1], halfaz, 1 * grid.size.r[1]), fov=(30, 30))
     # FIXME: flatten this too?
-    op = Operator(grid, geom, _flatten=False)
+    op = Operator(grid, geom)
 
     # if multiple channels, process each separately
     if volume.ndim == len(grid.shape) + 1:

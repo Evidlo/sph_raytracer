@@ -43,7 +43,7 @@ def test_operator_static():
     ]
     for grid in grids:
         geom = ViewGeom(ray_starts, rays)
-        op = Operator(grid, geom, _flatten=False)
+        op = Operator(grid, geom)
         d = tr.ones(grid.shape)
         result = op(d)
         diam = 2 * (grid.size[0][1] - grid.size[0][0])
@@ -54,7 +54,7 @@ def test_operator_static():
     # trace ray through center of hollow sphere
     geom = ViewGeom([-100, 0, 0], [1, 0, 0])
     grid = SphericalGrid(shape=(25, 25, 25), size_r=(5, 10))
-    op = Operator(grid, geom, _flatten=False)
+    op = Operator(grid, geom)
     # trace multidimensional static volume
     result = op(tr.rand((5,) + grid.shape))
     assert result.shape == (5,), "Incorrect shape for multi-channel volume"
@@ -104,7 +104,7 @@ def test_buggy_los():
     test_cases = zip(grids, ds, ray_starts, rays, correct_results)
     for grid, d, ray_start, ray, correct_result in test_cases:
         geom = ViewGeom(ray_start, ray)
-        op = Operator(grid, geom, _flatten=False)
+        op = Operator(grid, geom)
         result = op(d)
         ray_success = tr.isclose(result, tr.tensor(correct_result, dtype=result.dtype))
         fail_str = f"Failure for grid={grid} for ray #s {tr.where(ray_success == False)[0].tolist()}"
@@ -113,4 +113,4 @@ def test_buggy_los():
     # trace ray through center of hollow sphere
     geom = ViewGeom([-100, 0, 0], [1, 0, 0])
     grid = SphericalGrid(shape=(25, 25, 25), size_r=(5, 10))
-    op = Operator(grid, geom, _flatten=False)
+    op = Operator(grid, geom)
