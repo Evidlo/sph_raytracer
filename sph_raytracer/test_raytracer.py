@@ -89,7 +89,7 @@ def test_buggy_los():
     ]
     # densities
     ds = [
-        tr.tensor([[[1], [0]]]) # upper hemisphere filled
+        tr.tensor([[[1.0], [0]]]) # upper hemisphere filled
     ]
     u = 0.001
     ray_starts = [
