@@ -239,7 +239,7 @@ class SphericalGrid:
         of shape (N_t, N_r, N_e, N_a, 4) dynamic or (N_r, N_e, N_a, 3) static
         """
 
-        return tr.stack(tr.meshgrid(self.coords, indexing='ij'), dim=-1)
+        return tr.stack(tr.meshgrid(list(self.coords.values()), indexing='ij'), dim=-1)
 
     @property
     def nptime(self):
