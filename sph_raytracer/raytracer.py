@@ -655,6 +655,8 @@ class Operator:
         device (str): torch device where tensors are stored
         pdevice (str): torch device where tensors are initialized
         dynamic (bool): force whether input density is evolving (4D) or static (3D)
+        chunk (bool): enable out-of-core operation for large operators
+        chunk_size (int):  process dim=0 of `geom` in chunks of this size
         debug (bool): enable debug printing
         debug_los (tuple, None): choose LOS to debug
         _compute (bool): disable actual computation of LOS for plotting purposes
@@ -662,7 +664,7 @@ class Operator:
     def __init__(self, grid, geom, dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice=PDEVICE,
                  debug=False, debug_los=None, invalid=False,
-                 _compute=True):
+                 chunk=False, chunk_size=20, _compute=True):
         self.grid = grid
         self.geom = geom
         if dynamic is None:
@@ -671,10 +673,16 @@ class Operator:
         self.ftype = ftype
         self.itype = itype
         self.device = device
+        self.chunk = chunk
+        self.chunk_size = chunk_size
+
         if _compute:
             self.regs, self.lens = trace_indices(
                 grid, geom.ray_starts, geom.rays,
-                ftype=ftype, itype=itype, device=device, pdevice=pdevice,
+                ftype=ftype, itype=itype,
+                # put tensors on CPU if out-of-core operation is enabled
+                device=pdevice if chunk else device,
+                pdevice=pdevice,
                 invalid=invalid, debug=debug, debug_los=debug_los
             )
 
@@ -700,16 +708,26 @@ class Operator:
         Returns:
             line_integrations (tensor): integrated lines of sight of shape `geom.shape`
         """
-        r, e, a = self.regs
-        # if dynamic volume density:
-        if self.grid.dynamic:
-            t = tr.arange(len(density))[:, None, None, None]
-        else:
-            t = Ellipsis
+        result = tr.empty(self.geom.shape)
 
-        result = density[t, r, e, a]
-        result *= self.lens
-        result = result.sum(axis=-1)
+        # compute out-of-core over first dimension of `self.geom`
+        for chunk_start in range(0, self.geom.shape[0], self.chunk_size):
+            chunk = slice(chunk_start, chunk_start + self.chunk_size)
+            r, e, a = self.regs[:, chunk].to(self.device)
+            lens = self.lens[chunk].to(self.device)
+
+            # if dynamic volume density:
+            if self.grid.dynamic:
+                t = tr.arange(len(density))[:, None, None, None]
+            else:
+                t = Ellipsis
+
+            # inner product for this chunk
+            chunk_result = density[t, r, e, a]
+            chunk_result *= lens
+            chunk_result = chunk_result.sum(axis=-1)
+            result[chunk] = chunk_result
+
         return result
 
     def T(self, line_integrations):

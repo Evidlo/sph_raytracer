@@ -59,6 +59,15 @@ def test_operator_static():
     result = op(tr.rand((5,) + grid.shape))
     assert result.shape == (5,), "Incorrect shape for multi-channel volume"
 
+# check out-of-core operation
+def test_operator_chunk():
+    grid = SphericalGrid((25, 25, 25))
+    geom = ConeRectGeom((10, 10), (1, 0, 0))
+    geom = sum([geom] * 20)
+    op = Operator(grid, geom, chunk=True, chunk_size=5)
+    result = op(tr.rand(grid.shape), device=op.device)
+    assert result.shape == grid.shape, "Incorrect return shape for chunked operator"
+
 
 # check operator result shapes under various conditions
 def test_operator_shape():
