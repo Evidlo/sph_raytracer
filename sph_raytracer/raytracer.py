@@ -661,20 +661,19 @@ class Operator:
         debug_los (tuple, None): choose LOS to debug
         _compute (bool): disable actual computation of LOS for plotting purposes
     """
-    def __init__(self, grid, geom, dynamic=False,
+    def __init__(self, grid, geom, #dynamic=False,
                  ftype=FTYPE, itype=ITYPE, device=DEVICE, pdevice=PDEVICE,
                  debug=False, debug_los=None, invalid=False,
                  chunk=False, chunk_size=20, _compute=True):
         self.grid = grid
         self.geom = geom
-        if dynamic is None:
-            dynamic = True if isinstance(geom, ViewGeomCollection) else False
-        self.dynamic = dynamic
+        # if dynamic is None:
+        #     dynamic = True if isinstance(geom, ViewGeomCollection) else False
+        # self.dynamic = dynamic
         self.ftype = ftype
         self.itype = itype
         self.device = device
         self.chunk = chunk
-        self.chunk_size = chunk_size
 
         if _compute:
             self.regs, self.lens = trace_indices(
@@ -685,6 +684,7 @@ class Operator:
                 pdevice=pdevice,
                 invalid=invalid, debug=debug, debug_los=debug_los
             )
+        self.chunk_size = chunk_size if chunk else self.lens.shape[0]
 
         # FIXME: should turn this check back on
         # see why zeroing out region index slows down operator
@@ -707,26 +707,66 @@ class Operator:
 
         Returns:
             line_integrations (tensor): integrated lines of sight of shape `geom.shape`
+
+        Below are possible combinations for density/geom shapes and the result shape
+
+        # static multichannel
+        density: (t, r, e, a)
+        geom: (x, y)
+        result: (t, x, y)
+
+        # static (single vantage)
+        density: (r, e, a)
+        geom: (x, y)
+        result: (x, y) (*geom.shape)
+
+        # static (multiple vantage)
+        density: (r, e, a)
+        geom: (v, x, y)
+        result: (v, x, y)
+
+        density: (t, r, e, a)
+        geom: (v, x, y):
+        result: error
+
+        # dynamic (multiple vantage)
+        density: (t, r, e, a)
+        geom: (t, x, y):
+        result: (t, x, y)
+
+        # dynamic (single LOS)
+        density: (t, r, e, a)
+        geom: ():
+        result: (t)
         """
-        result = tr.empty(self.geom.shape)
+
+
+        if not self.grid.dynamic and density.ndim == 4: # multichannel density
+            outshape = (density.shape[0], *self.geom.shape)
+        else:
+            outshape = self.geom.shape
+
+        # tdyn = tr.arange(len(density))[:, None, None, None]
+        tdyn = tr.arange(len(density))
+        result = tr.empty(outshape, device=self.device)
 
         # compute out-of-core over first dimension of `self.geom`
-        for chunk_start in range(0, self.geom.shape[0], self.chunk_size):
+        chunk_dim = self.geom.shape[0] if len(self.geom.shape) > 0 else 1
+        chunk_dims = max(len(self.geom.shape), 1)
+        tdyn = tdyn[:, *[None] * chunk_dims]
+        for chunk_start in range(0, chunk_dim, self.chunk_size):
             chunk = slice(chunk_start, chunk_start + self.chunk_size)
             r, e, a = self.regs[:, chunk].to(self.device)
+            t = tdyn[chunk].broadcast_to(r.shape) if self.grid.dynamic else Ellipsis
             lens = self.lens[chunk].to(self.device)
-
-            # if dynamic volume density:
-            if self.grid.dynamic:
-                t = tr.arange(len(density))[:, None, None, None]
-            else:
-                t = Ellipsis
 
             # inner product for this chunk
             chunk_result = density[t, r, e, a]
             chunk_result *= lens
             chunk_result = chunk_result.sum(axis=-1)
-            result[chunk] = chunk_result
+            # result[*((slice(None),) * cdim + (chunk,))] = chunk_result
+            slices = [slice(None)] * (chunk_dims - 1)
+            result[..., chunk, *slices] = chunk_result
 
         return result
 
@@ -767,7 +807,7 @@ class Operator:
 
 
     def __repr__(self):
-        if self.dynamic:
+        if self.grid.dynamic:
             return f"Operator({(self.geom.shape[0], *self.grid.shape)} → {self.geom.shape})"
         else:
             return f"Operator({self.grid.shape} → {self.geom.shape})"
@@ -835,7 +875,7 @@ class Operator:
         # fix whitespace
         # fig.subplots_adjust(left=0, top=1, bottom=0.1, right=.95, wspace=0, hspace=0)
 
-        if not self.dynamic and len(wireframe) == 1:
+        if not self.grid.dynamic and len(wireframe) == 1:
             return ax
         else:
             N = len(wireframe)

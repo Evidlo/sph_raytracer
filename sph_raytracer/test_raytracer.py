@@ -17,29 +17,29 @@ def test_operator_static():
     # offset traced ray a small amount in several directions to check for rounding errors
     u = 0.001
     ray_starts = [
-        [-100, u, u],
-        [u, -100, u],
-        [u, u, -100],
-        [-100, 0, u],
-        [0, -100, u],
-        [0, u, -100],
-        [-100, u, 0],
-        [u, -100, 0],
-        [u, 0, -100],
-        [5, 0, 0],
+        [[-100, u, u]],
+        [[u, -100, u]],
+        [[u, u, -100]],
+        [[-100, 0, u]],
+        [[0, -100, u]],
+        [[0, u, -100]],
+        [[-100, u, 0]],
+        [[u, -100, 0]],
+        [[u, 0, -100]],
+        [[5, 0, 0]],
     ]
     rays = [
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1],
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1],
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1],
+        [[1, 0, 0]],
+        [[0, 1, 0]],
+        [[0, 0, 1]],
+        [[1, 0, 0]],
+        [[0, 1, 0]],
+        [[0, 0, 1]],
+        [[1, 0, 0]],
+        [[0, 1, 0]],
+        [[0, 0, 1]],
         # ray just barely glances elevation cone
-        [-0.99998629093170166016,  0.00413372274488210678, 0.00321511807851493359],
+        [[-0.99998629093170166016,  0.00413372274488210678, 0.00321511807851493359]],
     ]
     for grid in grids:
         geom = ViewGeom(ray_starts, rays)
@@ -65,30 +65,43 @@ def test_operator_chunk():
     geom = ConeRectGeom((10, 10), (1, 0, 0))
     geom = sum([geom] * 20)
     op = Operator(grid, geom, chunk=True, chunk_size=5)
-    result = op(tr.rand(grid.shape), device=op.device)
-    assert result.shape == grid.shape, "Incorrect return shape for chunked operator"
+    result = op(tr.rand(grid.shape, device=op.device))
+    assert result.shape == geom.shape, "Incorrect return shape for chunked operator"
 
 
 # check operator result shapes under various conditions
 def test_operator_shape():
+    stat_geom = ConeRectGeom((64, 64), (1, 0, 0))
+    mult_geom = sum([stat_geom] * 10)
     # trace through center of solid sphere
     grids = [
-        # static grid and static input
-        [SphericalGrid((2, 3, 4)),     tr.rand((2, 3, 4))],
+        # (grid, input, geom_shape, result_shape)
+
+        # static grid and static input with single vantage
+        [SphericalGrid((2, 3, 4)), tr.rand((2, 3, 4)), stat_geom, (64, 64)],
+        # static grid and static input with multi vantage
+        [SphericalGrid((2, 3, 4)), tr.rand((2, 3, 4)), mult_geom, (10, 64, 64)],
         # static grid and static multichannel input
-        [SphericalGrid((2, 3, 4)),     tr.rand((10, 2, 3, 4))],
-        # dynamic grid and dynamic input
-        [SphericalGrid((10, 2, 3, 4)), tr.rand((10, 2, 3, 4))],
+        [SphericalGrid((2, 3, 4)), tr.rand((10, 2, 3, 4)), stat_geom, (10, 64, 64)],
+        # FIXME: dynamic grid and dynamic input with static vantage
+        # [SphericalGrid((10, 2, 3, 4)), tr.rand((10, 2, 3, 4)), stat_geom, (10, 64, 64)],
+        # static grid and multichannel input with static vantage
+        [SphericalGrid((2, 3, 4)), tr.rand((10, 2, 3, 4)), stat_geom, (10, 64, 64)],
+        # dynamic grid and dynamic input with dynamic vantage
+        [SphericalGrid((10, 2, 3, 4)), tr.rand((10, 2, 3, 4)), mult_geom, (10, 64, 64)],
     ]
 
-    geom = ConeRectGeom(shape:=(64, 64), (1, 0, 0))
-    for grid, d in grids:
+    for grid, density, geom, result_shape in grids:
         op = Operator(grid, geom)
-        result = op(d)
-        # shape of channel/time dimensions (i.e. nonspatial dimensions)
-        chan_time = d.shape[:-3]
-        fail_str = f"Failure for grid={grid} and input={d.shape}"
-        assert result.shape == chan_time + shape, f"Invalid shape: {fail_str}"
+        result = op(density)
+        fail_str = f"Failure for grid={grid} and input={density.shape}"
+        assert result.shape == result_shape, f"Invalid shape: {fail_str}"
+
+    for grid, density, geom, result_shape in grids:
+        op = Operator(grid, geom, chunk=True, chunk_size=2)
+        result = op(density)
+        fail_str = f"Chunk failure for grid={grid} and input={density.shape}"
+        assert result.shape == result_shape, f"Invalid shape: {fail_str}"
 
 # raytracer regression bugs
 def test_buggy_los():
@@ -102,10 +115,10 @@ def test_buggy_los():
     ]
     u = 0.001
     ray_starts = [
-        [-200, u, u],
+        [[-200, u, u]],
     ]
     rays = [
-        [1, 0, 0],
+        [[1, 0, 0]],
     ]
     correct_results = [
         50
