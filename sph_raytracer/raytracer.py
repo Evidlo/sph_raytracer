@@ -755,8 +755,14 @@ class Operator:
             return f"Operator({self.grid.shape} → {self.geom.shape})"
 
 
-    def plot(self, ax=None, grid=None, geom=None):
+    def plot(self, plot_geom=True, plot_path=True, plot_grid=True,
+             ax=None, grid=None, geom=None):
         """Generate Matplotlib wireframe plot for this object
+
+        Args:
+            plot_geom (bool): plot viewing geometry
+            plot_path (bool): plot viewing geometry path
+            plot_grid (bool): plot grid
 
         Returns:
             matplotlib Animation if dynamic density or multiple vantages
@@ -774,10 +780,11 @@ class Operator:
             fig = plt.figure(figsize=(3, 3))
             ax = fig.add_subplot(projection='3d', computed_zorder=False)
 
-        grid.plot(ax)
+        if plot_grid:
+            grid.plot(ax)
 
         # draw path
-        if (pos := geom.pos) is not None:
+        if (pos := geom.pos) is not None and plot_path:
             lc = Line3DCollection([])
             segments = tr.stack((pos[:-1], pos[1:]))
             lc.set_segments(segments)
@@ -785,7 +792,7 @@ class Operator:
             lc.set_colors(['gray'] * len(segments))
             ax.add_collection(lc)
 
-        wireframe = geom._wireframe
+        wireframe = geom._wireframe if plot_geom else [[[], [], []]]
         lc = Line3DCollection([])
         ax.add_collection(lc)
 

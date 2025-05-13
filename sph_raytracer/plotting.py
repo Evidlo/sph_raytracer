@@ -106,6 +106,8 @@ def image_stack(images, geom=None, ax=None, colorbar=False, polar=None, **kwargs
     if ax is None:
         fig = plt.figure(figsize=(3, 3))
         ax = fig.add_subplot(polar=polar)
+    else:
+        fig = ax.figure
 
     # detach from GPU if necessary
     if isinstance(images, tr.Tensor):
